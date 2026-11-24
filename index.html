@@ -3477,6 +3477,7 @@ html.d-compact h1{font-size:1.38rem}
 
   /* ---------- ícones (traço, 24px) ---------- */
   const ICONS = {
+    calc: '<rect x="5" y="2.5" width="14" height="19" rx="2"/><path d="M8 6.5h8v3H8z"/><path d="M8.5 13h.01M12 13h.01M15.5 13h.01M8.5 16.5h.01M12 16.5h.01M15.5 16.5h.01"/>',
     home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
     users: '<circle cx="9" cy="8" r="4"/><path d="M2 21c0-3.9 3.1-7 7-7s7 3.1 7 7"/><path d="M16 4a4 4 0 0 1 0 8"/><path d="M22 21c0-3-1.8-5.5-4.5-6.5"/>',
     file: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/>',
@@ -5276,7 +5277,7 @@ html.d-compact h1{font-size:1.38rem}
         ${L("#/calculadoras", "calc", "Calculadoras", "dose × área, sementes, sacas de soja")}</div>
       <div class="list menu-list">${L("#/metas", "target", "Metas")}${L("#/comissao", "coins", "Regras de comissão", "só calculada se você cadastrar")}
         ${L("#/planejamentos", "sprout", "Planejamentos de visitas", "dias após o plantio")}</div>
-      <div class="list menu-list">${L("#/importar", "upload", "Importar clientes e produtos")}${L("#/exportar", "download", "Exportar e backup")}
+      <div class="list menu-list">${L("#/calculadora", "calc", "Calculadora financeira")}${L("#/importar", "upload", "Importar clientes e produtos")}${L("#/exportar", "download", "Exportar e backup")}
         ${L("#/auditoria", "history", "Histórico de alterações")}${L("#/lixeira", "trash", "Lixeira", "clientes excluídos")}</div>
       <div class="list menu-list">${L("#/config", "settings", "Configurações e identidade visual")}</div>
       <div class="card"><h3>Dados de demonstração</h3>
@@ -5561,6 +5562,7 @@ html.d-compact h1{font-size:1.38rem}
           : html`<div class="foot"><span>Toque para definir sua meta do mês</span></div>`}
       </a>
       <a class="big-new" href="#/cotacoes/nova"><span class="plus">${I("plus")}</span>Nova cotação</a>
+      <a class="btn" href="#/calculadora" style="width:100%;justify-content:center;margin:-2px 0 12px">${I("calc")} Calculadora financeira</a>
       <div class="grid g2" style="margin-bottom:6px">
         <a class="kpi" href="#/cotacoes"><div class="stat-ic">${I("file")}</div><div class="label">Em negociação</div><div class="value" data-count="${s.open_quotes_cents}">${brl(s.open_quotes_cents)}</div><div class="sub">${s.open_quotes} cotação(ões)</div></a>
         <a class="kpi" href="#/vendas"><div class="stat-ic o">${I("truck")}</div><div class="label">A entregar</div><div class="value">${toDeliver.length}</div><div class="sub">venda(s) com saldo</div></a>
@@ -5694,7 +5696,7 @@ html.d-compact h1{font-size:1.38rem}
     const L = (h, i, t, s) => html`<a class="item" href="${h}">${I(i)}<div class="grow"><div class="title">${t}</div>${s ? html`<div class="meta">${s}</div>` : ""}</div><span class="chev">${I("right", "sm")}</span></a>`;
     const demo = await App.get("/api/demo/status").catch(() => ({ demo_clients: 0 }));
     view.innerHTML = html`<h1>Mais</h1>
-      <div class="list menu-list">${L("#/clientes", "users", "Clientes", "telefone, cidade, histórico")}${L("#/produtos", "box", "Produtos e preços", "seu catálogo para as cotações")}${L("#/receitas", "sprout", "Receitas agronômicas", "plano por operação e PDF da receita")}
+      <div class="list menu-list">${L("#/calculadora", "calc", "Calculadora financeira", "juros compostos: levar ao futuro ou trazer para hoje")}${L("#/clientes", "users", "Clientes", "telefone, cidade, histórico")}${L("#/produtos", "box", "Produtos e preços", "seu catálogo para as cotações")}${L("#/receitas", "sprout", "Receitas agronômicas", "plano por operação e PDF da receita")}
         ${L("#/metas", "target", "Metas")}${L("#/config", "settings", "Padrão de preço, seu nome e PDF")}${L("#/exportar", "download", "Backup e Excel")}${L("#/importar", "upload", "Importar clientes e produtos")}</div>
       <div class="card tight"><div class="row between"><div><b>Tamanho da tela</b><div class="tiny muted">Só neste aparelho</div></div>${App.densityControl()}</div></div>
       <div class="card tight"><div class="row between"><div><b>Modo completo</b><div class="tiny muted">Mostra agenda de visitas, talhões, dose × área, margens e mais filtros.</div></div>
@@ -6149,7 +6151,6 @@ html.d-compact h1{font-size:1.38rem}
     };
   }, { tab: "vendas", when: always });
 })();
-
 
 /* ---- agro.js ---- */
 /* Barter (por cotação) e Receita agronômica (módulo próprio, com PDF) — mesmas fórmulas do Simulador de Cotação GFB AGRO. */
@@ -6606,6 +6607,100 @@ html.d-compact h1{font-size:1.38rem}
     const r = await App.busy(btn, () => App.post("/api/receitas", { quote_id: q.id }), "Criando…");
     App.toast("Receita criada com os produtos da cotação", "ok"); App.go(`#/receitas/${r.id}`);
   };
+})();
+
+/* ---- fincalc.js ---- */
+/* Calculadora financeira: juros compostos.
+   Levar ao futuro: VF = VP × (1 + i)^n      Trazer para hoje: VP = VF ÷ (1 + i)^n
+   n = meses (aceita fração: 45 dias = 1,5), i = juros ao mês. Arredonda para centavos (meio para cima). */
+(function () {
+  "use strict";
+  const { html, route, brl } = App;
+  const I = App.icon;
+
+  const num = (s) => {
+    let t = String(s == null ? "" : s).trim().replace(/\s|R\$|%/g, "");
+    if (t === "") return null;
+    if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
+    const n = Number(t);
+    return isFinite(n) ? n : null;
+  };
+  const round2 = (x) => { const v = Number((Math.abs(x) * 100).toPrecision(15)); return Math.sign(x) * Math.round(v) / 100; };
+  const fmt = (v, d) => new Intl.NumberFormat("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d }).format(v);
+
+  function calcular(modo, valor, meses, taxa) {
+    const fator = Math.pow(1 + taxa / 100, meses);
+    const res = modo === "futuro" ? round2(valor * fator) : round2(valor / fator);
+    const hoje = modo === "futuro" ? round2(valor) : res, futuro = modo === "futuro" ? res : round2(valor);
+    return { fator, res, hoje, futuro, juros: round2(futuro - hoje), pctPeriodo: (fator - 1) * 100 };
+  }
+  App.finCalc = calcular;
+
+  route("/calculadora", async (view) => {
+    const st = App.state.settings || {};
+    let saved = {}; try { saved = JSON.parse(App.ls("cv_fincalc") || "{}"); } catch (e) { saved = {}; }
+    let modo = saved.modo === "presente" ? "presente" : "futuro";
+    const taxaPadrao = App.decInput(st.gfb_rate || "1.49");
+    view.innerHTML = html`
+      <div class="page-head"><h1>Calculadora financeira</h1></div>
+      <div class="seg" id="modo" style="margin-bottom:10px">
+        <button type="button" data-m="futuro" class="${modo === "futuro" ? "on" : ""}">Levar ao futuro</button>
+        <button type="button" data-m="presente" class="${modo === "presente" ? "on" : ""}">Trazer para hoje</button></div>
+      <form id="fc" class="card form" autocomplete="off" onsubmit="return false">
+        <label class="field"><span id="lv">Valor</span>
+          <input name="valor" inputmode="decimal" placeholder="0,00" value="${saved.valor || ""}"></label>
+        <div class="grid g2">
+          <label class="field"><span>Meses</span><input name="meses" inputmode="decimal" placeholder="Ex.: 6" value="${saved.meses || ""}"></label>
+          <label class="field"><span>Juros ao mês (%)</span><input name="taxa" inputmode="decimal" placeholder="${taxaPadrao}" value="${saved.taxa != null && saved.taxa !== "" ? saved.taxa : taxaPadrao}"></label>
+        </div>
+        <div class="hint">Meses podem ter fração: 15 dias = 0,5 · 45 dias = 1,5. Juros compostos, mês a mês.</div>
+      </form>
+      <div id="out"></div>`.s;
+    const f = view.querySelector("#fc"), out = view.querySelector("#out"), lv = view.querySelector("#lv");
+    const draw = () => {
+      lv.textContent = modo === "futuro" ? "Valor de hoje (R$)" : "Valor futuro (R$)";
+      const v = num(f.valor.value), n = num(f.meses.value), t = num(f.taxa.value);
+      App.ls("cv_fincalc", JSON.stringify({ modo, valor: f.valor.value, meses: f.meses.value, taxa: f.taxa.value }));
+      if (v === null || n === null || t === null) { out.innerHTML = html`<div class="empty small muted" style="padding:14px">Preencha valor, meses e juros para ver o resultado.</div>`.s; return; }
+      if (v < 0 || n < 0 || t <= -100 || n > 600) { out.innerHTML = html`<div class="infobox">Confira os números: valor e meses não podem ser negativos, e meses até 600.</div>`.s; return; }
+      const r = calcular(modo, v, n, t);
+      const titulo = modo === "futuro" ? "Valor no futuro" : "Valor hoje (presente)";
+      const inteiro = Number.isInteger(n) && n >= 1 && n <= 120;
+      let tabela = "";
+      if (inteiro) {
+        const linhas = []; for (let m = 0; m <= n; m++) {
+          const val = round2(r.hoje * Math.pow(1 + t / 100, m));
+          linhas.push(html`<tr><td>${m === 0 ? "Hoje" : "Mês " + m}</td><td class="num">${brl(Math.round(val * 100))}</td></tr>`);
+        }
+        tabela = html`<details class="card" style="margin-top:10px"><summary class="bold">Ver mês a mês</summary>
+          <table class="t" style="margin-top:8px;width:100%"><tbody>${linhas}</tbody></table></details>`;
+      }
+      out.innerHTML = html`
+        <div class="hero" style="margin-top:10px"><div class="lbl">${titulo}</div>
+          <div class="big">${brl(Math.round(r.res * 100))}</div>
+          <div class="foot"><span>${fmt(n, Number.isInteger(n) ? 0 : 2)} ${n === 1 ? "mês" : "meses"} a ${fmt(t, 2)}% a.m.</span></div></div>
+        <div class="card">
+          <div class="row between"><span class="muted">Valor hoje</span><b class="num">${brl(Math.round(r.hoje * 100))}</b></div>
+          <div class="row between"><span class="muted">Valor no futuro</span><b class="num">${brl(Math.round(r.futuro * 100))}</b></div>
+          <div class="row between"><span class="muted">Juros no período</span><b class="num">${brl(Math.round(r.juros * 100))} (${fmt(r.pctPeriodo, 2)}%)</b></div>
+          <div class="row between"><span class="muted">Fator (1 + juros)<sup>meses</sup></span><b class="num">${fmt(r.fator, 6)}</b></div>
+          <div class="hint" style="margin-top:6px">${modo === "futuro" ? "Valor futuro = valor de hoje × fator" : "Valor hoje = valor futuro ÷ fator"}</div>
+          <div class="row" style="gap:8px;margin-top:10px"><button type="button" class="btn" id="cp">${I("copy")} Copiar</button>
+            <button type="button" class="btn" id="inv">Usar como novo valor</button></div>
+        </div>${tabela}`.s;
+      out.querySelector("#cp").onclick = async () => {
+        const txt = `${titulo}: ${brl(Math.round(r.res * 100))} (${fmt(n, Number.isInteger(n) ? 0 : 2)} meses a ${fmt(t, 2)}% a.m.; valor de origem ${brl(Math.round(v * 100))})`;
+        try { await navigator.clipboard.writeText(txt); App.toast("Resultado copiado", "ok"); } catch (e) { App.toast(txt); }
+      };
+      out.querySelector("#inv").onclick = () => { f.valor.value = fmt(r.res, 2); draw(); };
+    };
+    view.querySelector("#modo").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-m]"); if (!b) return;
+      modo = b.dataset.m; view.querySelectorAll("#modo button").forEach((x) => x.classList.toggle("on", x === b)); draw();
+    });
+    f.addEventListener("input", draw);
+    draw();
+  }, { tab: "mais" });
 })();
 
 App.start();</script>
