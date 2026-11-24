@@ -864,7 +864,7 @@ html.d-compact h1{font-size:1.38rem}
   const CHUNK = 100;
   const TABLES = ["clients", "farms", "fields", "crop_cycles", "products", "needs", "quotes", "quote_items", "sales", "sale_items",
     "sale_returns", "sale_return_items", "receipts", "deliveries", "delivery_items", "plan_templates", "plan_steps", "visits",
-    "photos", "tasks", "notes", "goals", "commission_rules", "day_overrides", "audit_log", "counters", "settings"];
+    "photos", "tasks", "notes", "goals", "commission_rules", "day_overrides", "audit_log", "counters", "settings", "receitas"];
   const S = (B.store = { t: {}, maxId: {}, dirty: new Set(), dirtyRows: new Map(), journal: null, db: null, base: null, media: null, pendingWrites: 0, mem: false, lastError: null });
   TABLES.forEach((t) => { S.t[t] = new Map(); S.maxId[t] = 0; });
   const ck = (table, id) => `${table}~${Math.floor(id / CHUNK)}`;
@@ -1615,7 +1615,7 @@ html.d-compact h1{font-size:1.38rem}
   function copyQuote(src, number, version, origin, previousId, items, status = "rascunho", overrides = {}) {
     const vals = {};
     ["client_id", "farm_id", "crop_cycle_id", "season", "crop", "area_ha", "valid_until", "expected_close_date", "payment_terms", "due_dates", "freight_cents", "other_cents",
-      "other_desc", "probability_pct", "notes", "internal_notes", "next_contact_date", ...GFB_HEAD].forEach((k) => (vals[k] = src[k] === undefined ? null : src[k]));
+      "other_desc", "probability_pct", "notes", "internal_notes", "next_contact_date", "agro", ...GFB_HEAD].forEach((k) => (vals[k] = src[k] === undefined ? null : src[k]));
     Object.assign(vals, overrides);
     const issue = vals.issue_date || B.todayIso();
     if (vals.pricing === "gfb") {         // padrão GFB: recalcula prazos/juros a partir da data da cotação desta versão
@@ -2897,6 +2897,8 @@ html.d-compact h1{font-size:1.38rem}
     }
   }
 
+  Docs.Pdf = Pdf;
+
   /* Proposta comercial no layout da Calculadora de Preço GFB AGRO (A4, medidas em mm como no original). */
   Docs.gfbPdf = async (q, o = {}) => {
     const { PDFDocument, StandardFonts, rgb } = PDFLib;
@@ -3614,7 +3616,8 @@ html.d-compact h1{font-size:1.38rem}
         ${a("#", "calendar", "Visita", "agendar na agenda", "visit")}
         ${a("#", "userplus", "Cliente rápido", "só nome e telefone", "client")}
         ${a("#", "tasks", "Tarefa ou retorno", "lembrete com prazo", "task")}
-        ${a("#/calculadoras", "calc", "Calculadoras", "dose, sementes, sacas de soja")}</div>`.s,
+        ${a("#/calculadoras", "calc", "Calculadoras", "dose, sementes, sacas de soja")}
+        ${a("#/receitas", "sprout", "Receita agronômica", "plano por operação e PDF")}</div>`.s,
       onOpen: (m, close) => {
         m.querySelectorAll("a").forEach((el) => el.addEventListener("click", (e) => {
           const q = el.dataset.q; close(null);
@@ -5269,7 +5272,7 @@ html.d-compact h1{font-size:1.38rem}
     view.innerHTML = html`<h1>Mais</h1>
       <div class="card tight"><div class="row between"><div><b>Modo simples</b><div class="tiny muted">Só cotação, vendas/entregas e painel.</div></div><button class="btn sm primary" id="tosimple">Voltar ao simples</button></div></div>
       <div class="card tight"><div class="row between"><div><b>Tamanho da tela</b><div class="tiny muted">Vale só para este aparelho. "Compacto" mostra mais informação sem rolar.</div></div>${App.densityControl()}</div></div><div class="list menu-list">${L("#/agenda", "calendar", "Agenda", "visitas e tarefas")}</div>
-      <div class="list menu-list">${L("#/vendas", "sale", "Vendas", "entregas, devoluções, recebimentos")}${L("#/produtos", "box", "Produtos")}${L("#/painel", "chart", "Painel de vendas")}
+      <div class="list menu-list">${L("#/vendas", "sale", "Vendas", "entregas, devoluções, recebimentos")}${L("#/produtos", "box", "Produtos")}${L("#/receitas", "sprout", "Receitas agronômicas", "plano por operação e PDF da receita")}${L("#/painel", "chart", "Painel de vendas")}
         ${L("#/calculadoras", "calc", "Calculadoras", "dose × área, sementes, sacas de soja")}</div>
       <div class="list menu-list">${L("#/metas", "target", "Metas")}${L("#/comissao", "coins", "Regras de comissão", "só calculada se você cadastrar")}
         ${L("#/planejamentos", "sprout", "Planejamentos de visitas", "dias após o plantio")}</div>
@@ -5691,7 +5694,7 @@ html.d-compact h1{font-size:1.38rem}
     const L = (h, i, t, s) => html`<a class="item" href="${h}">${I(i)}<div class="grow"><div class="title">${t}</div>${s ? html`<div class="meta">${s}</div>` : ""}</div><span class="chev">${I("right", "sm")}</span></a>`;
     const demo = await App.get("/api/demo/status").catch(() => ({ demo_clients: 0 }));
     view.innerHTML = html`<h1>Mais</h1>
-      <div class="list menu-list">${L("#/clientes", "users", "Clientes", "telefone, cidade, histórico")}${L("#/produtos", "box", "Produtos e preços", "seu catálogo para as cotações")}
+      <div class="list menu-list">${L("#/clientes", "users", "Clientes", "telefone, cidade, histórico")}${L("#/produtos", "box", "Produtos e preços", "seu catálogo para as cotações")}${L("#/receitas", "sprout", "Receitas agronômicas", "plano por operação e PDF da receita")}
         ${L("#/metas", "target", "Metas")}${L("#/config", "settings", "Padrão de preço, seu nome e PDF")}${L("#/exportar", "download", "Backup e Excel")}${L("#/importar", "upload", "Importar clientes e produtos")}</div>
       <div class="card tight"><div class="row between"><div><b>Tamanho da tela</b><div class="tiny muted">Só neste aparelho</div></div>${App.densityControl()}</div></div>
       <div class="card tight"><div class="row between"><div><b>Modo completo</b><div class="tiny muted">Mostra agenda de visitas, talhões, dose × área, margens e mais filtros.</div></div>
@@ -6016,6 +6019,8 @@ html.d-compact h1{font-size:1.38rem}
     if (q.editable) add(more, "Editar", "edit", "", () => App.go(`#/cotacoes/${q.id}/editar`));
     if (q.can_revise && !q.editable) add(more, "Alterar preços (nova versão)", "edit", "", async (b) => { const r = await App.busy(b, () => App.post(`/api/quotes/${q.id}/revise`)); App.go(`#/cotacoes/${r.id}/editar`); });
     add(more, "Duplicar", "copy", "", async (b) => { const r = await App.busy(b, () => App.post(`/api/quotes/${q.id}/duplicate`, {})); App.toast(`Nova cotação ${r.number}`, "ok"); App.go(`#/cotacoes/${r.id}`); });
+    add(more, "Barter", "coins", "", () => App.go(`#/cotacoes/${q.id}/barter`));
+    add(more, "Receita agronômica", "sprout", "", (b) => App.agroAbrirReceita(q, b));
     if (open && !App.simple()) add(more, "Registrar contato", "", "", () => A.contact(q));
     if (open) add(more, "Cancelar", "", "ghost", async (b) => {
       if (!(await App.confirm("Cancelar cotação", "A cotação sai da lista de abertas."))) return;
@@ -6143,6 +6148,464 @@ html.d-compact h1{font-size:1.38rem}
       } catch (err) { App.error(err); }
     };
   }, { tab: "vendas", when: always });
+})();
+
+
+/* ---- agro.js ---- */
+/* Barter (por cotação) e Receita agronômica (módulo próprio, com PDF) — mesmas fórmulas do Simulador de Cotação GFB AGRO. */
+(function () {
+  "use strict";
+  const B = window.Backend, App = window.App;
+  const { ApiError } = B;
+  const { html, raw } = App;
+  const I = App.icon;
+  const always = () => true;
+
+  /* ================= Regras (iguais à planilha) ================= */
+  const OPS = [
+    { key: "adubacao", nome: "Adubação", tipo: "std" },
+    { key: "semente", nome: "Semente", tipo: "semente" },
+    { key: "dessecacao", nome: "Dessecação", tipo: "std" },
+    { key: "v3v4", nome: "Aplicação V3/V4", tipo: "std" },
+    { key: "v6v7", nome: "Aplicação V6/V7", tipo: "std" },
+    { key: "v8r1", nome: "Aplicação V8/R1", tipo: "std" },
+    { key: "r4r5", nome: "Aplicação R4/R5.1", tipo: "std" },
+  ];
+  const ALIQ_PADRAO = {
+    pf_nota: { inss: "1,32", rat: "0,11", senar: "0,20" },
+    pf_folha: { inss: "0", rat: "0", senar: "0,20" },
+    pj_nota: { inss: "1,87", rat: "0,11", senar: "0,25" },
+    pj_folha: { inss: "0", rat: "0", senar: "0" },
+  };
+  const REGIMES = [["pf_nota", "Pessoa física · Funrural na nota"], ["pf_folha", "Pessoa física · Funrural na folha"], ["pj_nota", "Pessoa jurídica · Funrural na nota"], ["pj_folha", "Pessoa jurídica · Funrural na folha"]];
+  const MODALIDADES = ["Terrestre", "Aérea", "Drone"];
+  B.DEFAULT_SETTINGS.agro_aliquotas = "";
+
+  const N = (s) => B.gnum(s) ?? 0;
+  const num = (s) => B.gnum(s);
+  const roundUp = (x) => { const v = Number(x.toPrecision(15)); return v >= 0 ? Math.ceil(v) : Math.floor(v); };
+  const same = (a, b) => String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+  const nm = (s) => String(s || "").replace("[DEMO] ", "");
+  const nf = (d) => new Intl.NumberFormat("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const fmtN = (v, d = 2) => (v === null || v === undefined || !isFinite(v) ? "–" : nf(d).format(v));
+  const fmtQ = (v) => (v === null || v === undefined || !isFinite(v) ? "–" : nf(v === Math.trunc(v) ? 0 : 2).format(v));
+  const pct = (v, d = 2) => (v === null || v === undefined || !isFinite(v) ? "–" : nf(d).format(v * 100) + "%");
+  const brl = (v) => (v === null || v === undefined || !isFinite(v) ? "–" : App.brl(Math.round(v * 100)));
+  const aliquotas = (st) => { try { const a = JSON.parse(st.agro_aliquotas || ""); return { ...ALIQ_PADRAO, ...a }; } catch (e) { return ALIQ_PADRAO; } };
+
+  function calcBarter(b, valor, areaCot, aliq) {
+    b = b || {};
+    const soja = N(b.precoSoja), milho = N(b.precoMilho);
+    const escolhida = b.cultura === "milho" ? "Milho" : "Soja";
+    const efetiva = soja > 0 && milho > 0 ? escolhida : milho > 0 ? "Milho" : soja > 0 ? "Soja" : escolhida;
+    const key = (b.tipo === "pj" ? "pj" : "pf") + "_" + (b.recolhimento === "folha" ? "folha" : "nota");
+    const al = aliq[key] || { inss: 0, rat: 0, senar: 0 };
+    const inss = N(al.inss) / 100, rat = N(al.rat) / 100, senar = N(al.senar) / 100, outras = N(b.outras) / 100;
+    const totalDesc = inss + rat + senar + outras;
+    const area = b.area === undefined || b.area === null || String(b.area).trim() === "" ? N(areaCot) : N(b.area);
+    const prod = N(b.produtividade);
+    const bruto = efetiva === "Milho" ? milho : soja;
+    const liquido = bruto === 0 ? null : bruto * (1 - totalDesc);
+    const sacas = liquido ? valor / liquido : null;
+    const comp = (p) => {
+      if (p === 0) return null;
+      const liq = p * (1 - totalDesc), sc = liq ? valor / liq : null;
+      return { bruto: p, funrural: -p * (inss + rat), senar: -p * senar, outras: -p * outras, liquido: liq, sacas: sc, sacasHa: sc !== null && area ? sc / area : null };
+    };
+    return {
+      efetiva, key, regime: REGIMES.find((r) => r[0] === key)[1], inss, rat, senar, outras, totalDesc, area, prod, valor, bruto, liquido, sacas,
+      custoHa: area > 0 ? valor / area : null,
+      pctProducao: liquido && area > 0 && prod > 0 ? sacas / (area * prod) : null,
+      sacasHa: liquido && area > 0 ? sacas / area : null,
+      impostosSacas: liquido ? sacas * totalDesc : null,
+      sacasEntrega: liquido ? roundUp(sacas) : null,
+      producaoEstimada: prod > 0 ? area * prod : null,
+      soja: comp(soja), milho: comp(milho),
+    };
+  }
+
+  /* fontes de preço: itens da cotação vinculada (preço final) e, na falta, o catálogo de produtos (preço de referência) */
+  function fontes(quote, products) {
+    const map = new Map();
+    (products || []).forEach((p) => { if (p.name) map.set(p.name.trim().toLowerCase(), { nome: p.name, unid: p.unit || "", preco: p.ref_price_cents != null ? p.ref_price_cents / 100 : null, de: "catálogo" }); });
+    const itens = quote ? quote.items.map((it) => ({ nome: nm(it.product_name).trim(), unid: it.unit || "", qt: num(it.quantity), G: it.final_unit_cents != null ? it.final_unit_cents / 100 : it.unit_price_cents != null ? it.unit_price_cents / 100 : null, H: it.net_total_cents })) : [];
+    itens.forEach((i) => { if (i.nome) map.set(i.nome.toLowerCase(), { nome: i.nome, unid: i.unid, preco: i.G, de: "cotação" }); });
+    return { map, itens };
+  }
+
+  function calcReceita(r, src) {
+    const area = N(r.area_ha);
+    const ops = OPS.map((op) => {
+      const linhas = ((r.ops || {})[op.key] || []).map((l) => {
+        const nome = String(l.produto || "").trim();
+        const m = nome ? src.map.get(nome.toLowerCase()) : null;
+        if (op.tipo === "semente") {
+          const sm = num(l.sementesM), esp = N(l.espac), sb = N(l.sementesBag);
+          const pop = sm === null || esp === 0 ? null : (sm * 10000) / esp;
+          const bags = pop === null || sb === 0 || area === 0 ? null : roundUp((pop * area) / sb);
+          let custo = null;
+          if (nome && bags !== null) custo = !m ? "fora" : m.preco === null ? "sem" : bags * m.preco;
+          return { nome, m, pop, bags, qtd: bags, unid: "bag", custo, custoHa: typeof custo === "number" ? custo / area : null, usado: nome && bags !== null ? bags : 0 };
+        }
+        const dose = num(l.dose);
+        const unid = m ? m.unid : "";
+        const qtd = !nome || dose === null || area === 0 ? null : dose * area;
+        let custo = null;
+        if (qtd !== null) custo = !m ? "fora" : m.preco === null ? "sem" : qtd * m.preco;
+        return { nome, m, unid, dose, qtd, custo, custoHa: typeof custo === "number" ? custo / area : null, usado: nome && qtd !== null ? qtd : 0 };
+      });
+      const custo = linhas.reduce((s, l) => s + (typeof l.custo === "number" ? l.custo : 0), 0);
+      const custoHa = linhas.reduce((s, l) => s + (l.custoHa ?? 0), 0);
+      return { ...op, linhas, custo, custoHa };
+    });
+    const liq = N(r.bag_price) || null;
+    const total = ops.reduce((s, o) => s + o.custo, 0), totalHa = ops.reduce((s, o) => s + o.custoHa, 0);
+    ops.forEach((o) => { o.sacasHa = liq ? o.custoHa / liq : null; o.pct = total ? o.custo / total : 0; });
+    const todas = ops.flatMap((o) => o.linhas);
+    const conferencia = src.itens.filter((i) => i.nome && i.H != null && i.qt !== null).map((i) => {
+      const naReceita = todas.filter((l) => l.nome && same(l.nome, i.nome)).reduce((s, l) => s + l.usado, 0);
+      const saldo = i.qt - naReceita;
+      let situacao, tipo;
+      if (naReceita === 0) { situacao = "Ainda não está na receita"; tipo = "blue"; }
+      else if (Math.abs(saldo) < 0.005) { situacao = "Quantidade fechada"; tipo = "green"; }
+      else if (saldo > 0) { situacao = `Faltam ${fmtQ(saldo)} ${i.unid} na receita`; tipo = "gold"; }
+      else { situacao = `Receita usa ${fmtQ(-saldo)} ${i.unid} a mais`; tipo = "gold"; }
+      return { ...i, naReceita, saldo, situacao, tipo };
+    });
+    const valorCot = src.itens.reduce((s, i) => s + (i.H || 0), 0) / 100;
+    return { area, ops, total, totalHa, liq, sacasHa: liq ? totalHa / liq : null, conferencia, fechados: conferencia.filter((x) => x.tipo === "green").length,
+      pctCotacao: valorCot ? total / valorCot : null, nProdutos: todas.filter((l) => l.nome).length };
+  }
+  const novaLinha = (tipo) => (tipo === "semente" ? { produto: "", sementesM: "", espac: "", sementesBag: "" } : { produto: "", dose: "", alvo: "", modalidade: "" });
+  const opsVazias = () => Object.fromEntries(OPS.map((o) => [o.key, [novaLinha(o.tipo)]]));
+
+  /* ================= Servidor local (dados no aparelho / conta) ================= */
+  const route = B.route;
+  const ensureTable = () => { if (!B.store.t.receitas) { B.store.t.receitas = new Map(); B.store.maxId.receitas = 0; } };
+  ensureTable();
+  const clientName = (r) => { const c = r.client_id ? B.get("clients", r.client_id) : null; return c ? c.name : r.client_name || ""; };
+  const CAMPOS = ["client_id", "client_name", "farm", "field", "crop", "season", "area_ha", "date", "quote_id", "bag_price", "tech_name", "tech_reg", "art", "notes", "ops", "show_costs"];
+  const limpa = (d) => { const o = {}; CAMPOS.forEach((k) => { if (d[k] !== undefined) o[k] = d[k]; }); if (o.client_id !== undefined) o.client_id = o.client_id ? Number(o.client_id) : null; if (o.quote_id !== undefined) o.quote_id = o.quote_id ? Number(o.quote_id) : null; return o; };
+
+  route("GET", "/api/receitas", (req) => {
+    let items = B.filter("receitas", (r) => !r.deleted_at);
+    if (req.query.quote_id) items = items.filter((r) => r.quote_id === Number(req.query.quote_id));
+    return { items: items.sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || "")).map((r) => {
+      const q = r.quote_id ? B.get("quotes", r.quote_id) : null;
+      const n = OPS.reduce((s, o) => s + ((r.ops || {})[o.key] || []).filter((l) => String(l.produto || "").trim()).length, 0);
+      return { id: r.id, client: clientName(r), farm: r.farm, crop: r.crop, season: r.season, area_ha: r.area_ha, date: r.date, quote_number: q ? q.number : null, n_produtos: n, updated_at: r.updated_at };
+    }) };
+  });
+  route("GET", "/api/receitas/{id}", (req) => {
+    const r = B.get("receitas", B.param(req, "id"));
+    if (!r || r.deleted_at) throw new ApiError(404, "Receita não encontrada");
+    return { ...r, client_label: clientName(r) };
+  });
+  route("POST", "/api/receitas", (req) => {
+    const d = req.body || {}; const t = B.nowIso();
+    let base = { date: B.todayIso(), ops: opsVazias(), show_costs: true };
+    if (d.quote_id) {
+      const q = B.owned("quotes", Number(d.quote_id), "Cotação");
+      base = { ...base, quote_id: q.id, client_id: q.client_id, area_ha: q.area_ha || "", crop: q.crop || "", season: q.season || "" };
+      const lb = q.agro && q.agro.barter ? calcBarter(q.agro.barter, (q.total_cents || 0) / 100, q.area_ha, aliquotas(B.settings())) : null;
+      if (lb && lb.liquido) base.bag_price = nf(2).format(lb.liquido);
+    }
+    const st = B.settings();
+    const r = B.insert("receitas", { ...base, ...limpa(d), tech_name: d.tech_name || st.seller_name || "", created_at: t, updated_at: t, deleted_at: null });
+    B.audit("receita", r.id, "criada", null);
+    return { id: r.id };
+  });
+  route("PUT", "/api/receitas/{id}", (req) => {
+    const id = B.param(req, "id"); const r = B.get("receitas", id);
+    if (!r || r.deleted_at) throw new ApiError(404, "Receita não encontrada");
+    B.update("receitas", id, { ...limpa(req.body || {}), updated_at: B.nowIso() });
+    return { ok: true };
+  });
+  route("POST", "/api/receitas/{id}/duplicate", (req) => {
+    const r = B.get("receitas", B.param(req, "id")); if (!r) throw new ApiError(404, "Receita não encontrada");
+    const t = B.nowIso(); const { id, ...rest } = r;
+    const n = B.insert("receitas", { ...JSON.parse(JSON.stringify(rest)), date: B.todayIso(), created_at: t, updated_at: t, deleted_at: null });
+    return { id: n.id };
+  });
+  route("DELETE", "/api/receitas/{id}", (req) => {
+    const id = B.param(req, "id"); if (!B.get("receitas", id)) throw new ApiError(404, "Receita não encontrada");
+    B.update("receitas", id, { deleted_at: B.nowIso() }); B.audit("receita", id, "excluída", null);
+    return { ok: true };
+  });
+  route("PUT", "/api/quotes/{id}/agro", (req) => {
+    const q = B.owned("quotes", B.param(req, "id"), "Cotação");
+    B.update("quotes", q.id, { agro: { ...(q.agro || {}), ...(req.body || {}) } });
+    return { ok: true };
+  });
+
+  /* ================= Estilos ================= */
+  const css = document.createElement("style");
+  css.textContent = `
+  .agro .in{width:100%;min-width:0;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:.9rem}
+  .agro .in.r{text-align:right;font-variant-numeric:tabular-nums}
+  .agro table.t td{padding:4px 5px;vertical-align:middle}.agro table.t th{white-space:nowrap}
+  .agro table.t td.c{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+  .agro table.t tr.sub td{background:var(--surface-2);font-weight:700}
+  .agro .x{border:0;background:none;color:var(--muted);cursor:pointer;width:26px;height:26px;border-radius:6px;font-size:17px}
+  .agro .x:hover{background:var(--surface-2);color:var(--danger,#b42318)}
+  .agro .fora{color:var(--danger,#b42318);font-weight:600;font-size:.78rem;white-space:nowrap}
+  .agro .sem{color:var(--muted);font-size:.78rem;white-space:nowrap}
+  .agro .op-h{display:flex;align-items:center;gap:8px;margin:14px 0 6px}.agro .op-h h3{margin:0;font-size:.85rem;letter-spacing:.06em;text-transform:uppercase}
+  .agro .grow{flex:1}.agro .saved{font-size:.75rem;color:var(--muted)}
+  .agro .kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px 12px}
+  .agro .kv label{display:flex;flex-direction:column;gap:3px;font-size:.78rem;color:var(--muted);font-weight:600}
+  .agro .note{font-size:.84rem;color:var(--muted);background:var(--surface-2);border-radius:10px;padding:9px 11px;margin:8px 0}`;
+  document.head.appendChild(css);
+
+  const inp = (path, val, o = {}) => html`<input class="in ${o.cls || ""}" data-p="${path}" value="${val == null ? "" : val}" ${raw(o.dec ? 'inputmode="decimal"' : "")} ${raw(o.list ? `list="${o.list}"` : "")} ${raw(o.type ? `type="${o.type}"` : "")} placeholder="${o.ph || ""}" aria-label="${o.label || path}">`;
+  const sel = (path, val, opts, o = {}) => html`<select class="in" data-p="${path}" aria-label="${o.label || path}">${opts.map(([v, t]) => html`<option value="${v}" ${raw(String(v) === String(val ?? "") ? "selected" : "")}>${t}</option>`)}</select>`;
+  const getP = (o, p) => p.split(".").reduce((a, k) => (a == null ? undefined : a[k]), o);
+  const setP = (o, p, v) => { const ks = p.split("."); let x = o; for (let i = 0; i < ks.length - 1; i++) { if (x[ks[i]] == null) x[ks[i]] = {}; x = x[ks[i]]; } x[ks[ks.length - 1]] = v; };
+
+  /* ================= Barter (dentro da cotação) ================= */
+  const fresh = (view) => { view.innerHTML = ""; const el = document.createElement("div"); view.appendChild(el); return el; };
+  App.route("/cotacoes/:id/barter", async (view0, { id }) => {
+    const q = await App.get(`/api/quotes/${id}`);
+    const st = App.state.settings || B.settings();
+    let aliq = aliquotas(st);
+    const b = { cultura: "soja", precoSoja: "", precoMilho: "", tipo: "pf", recolhimento: "nota", outras: "", area: "", produtividade: "", ...((q.agro || {}).barter || {}) };
+    const valor = (q.total_cents || 0) / 100;
+    const view = fresh(view0);
+    const salvar = App.debounce(async () => { try { await App.put(`/api/quotes/${q.id}/agro`, { barter: b }); mark("Salvo"); } catch (e) { mark("Não salvou: " + (e.message || e)); } }, 700);
+    const salvarAliq = App.debounce(async () => { try { App.state.settings = await App.put("/api/settings", { agro_aliquotas: JSON.stringify(aliq) }); mark("Alíquotas salvas"); } catch (e) { mark("Não salvou: " + (e.message || e)); } }, 700);
+    const mark = (t) => { const el = view.querySelector("#sv"); if (el) el.textContent = t; };
+    const shell = () => {
+      view.innerHTML = html`<div class="agro">${App.backLink(`#/cotacoes/${q.id}`, "Cotação")}
+        <div class="row between"><div><div class="eyebrow">${q.number} · Barter</div><h1 style="margin:2px 0">${nm(q.client.name)}</h1>
+          <div class="small muted">Pedido de ${App.brl(q.total_cents)}${q.gfb ? ` · ${q.gfb.condicao.toLowerCase()}` : ""} · pago em sacas</div></div><span class="saved" id="sv"></span></div>
+        <div id="out"></div>
+        <div class="card form"><h3>Dados do barter</h3><div class="kv">
+          <label>Cultura do barter${sel("cultura", b.cultura, [["soja", "Soja"], ["milho", "Milho"]])}</label>
+          <label>Preço bruto da saca de soja (R$)${inp("precoSoja", b.precoSoja, { cls: "r", dec: 1, ph: "0,00" })}</label>
+          <label>Preço bruto da saca de milho (R$)${inp("precoMilho", b.precoMilho, { cls: "r", dec: 1, ph: "0,00" })}</label>
+          <label>Tipo de produtor${sel("tipo", b.tipo, [["pf", "Pessoa física"], ["pj", "Pessoa jurídica"]])}</label>
+          <label>Recolhimento do Funrural${sel("recolhimento", b.recolhimento, [["nota", "Funrural na nota"], ["folha", "Funrural na folha"]])}</label>
+          <label>Outras deduções (%)${inp("outras", b.outras, { cls: "r", dec: 1, ph: "0" })}</label>
+          <label>Área (ha)${inp("area", b.area, { cls: "r", dec: 1, ph: q.area_ha ? App.num(q.area_ha) + " (da cotação)" : "0" })}</label>
+          <label>Produtividade esperada (sc/ha)${inp("produtividade", b.produtividade, { cls: "r", dec: 1, ph: "0" })}</label></div>
+          <p class="hint">Se só um dos preços estiver preenchido, o simulador usa essa cultura. A área vem da cotação; digite outra para sobrepor.</p></div>
+        <div id="cmp"></div>
+        <div class="card"><h3>Alíquotas descontadas na venda do grão</h3><div class="scroll-x"><table class="t"><tr><th>Produtor · recolhimento</th><th>INSS %</th><th>RAT %</th><th>Senar %</th></tr>
+          ${REGIMES.map(([k, n]) => html`<tr><td>${n}</td>${["inss", "rat", "senar"].map((t) => html`<td style="width:90px">${inp(`aliq.${k}.${t}`, aliq[k][t], { cls: "r", dec: 1 })}</td>`)}</tr>`)}</table></div>
+          <div class="row" style="margin-top:8px;gap:8px"><button class="btn sm" id="resetaliq">Restaurar alíquotas da planilha</button></div>
+          <p class="hint">Vigentes desde 01/04/2026 (LC 224/2025 e IN RFB 2.321/2026): PF na nota 1,32% + 0,11% + 0,20% = 1,63%; PJ na nota 1,87% + 0,11% + 0,25% = 2,23%. ICMS do grão não considerado. Confira com seu contador.</p></div></div>`.s;
+      calc();
+    };
+    const calc = () => {
+      const r = calcBarter(b, valor, q.area_ha, aliq), cult = r.efetiva.toLowerCase();
+      const col = (x, k, money = true) => (x ? (money ? brl(x[k]) : fmtN(x[k], 2)) : "–");
+      view.querySelector("#out").innerHTML = html`<div class="tiles" style="margin:10px 0">
+          <div class="tile"><span class="k">Sacas de ${cult} – total</span><span class="v">${r.sacas === null ? "–" : fmtN(r.sacas, 2)}</span><span class="tiny muted">${r.liquido ? "a " + brl(r.liquido) + " líquido/sc" : "informe o preço"}</span></div>
+          <div class="tile"><span class="k">Custo R$/ha</span><span class="v">${r.custoHa === null ? "–" : brl(r.custoHa)}</span><span class="tiny muted">${fmtN(r.area, 2)} ha</span></div>
+          <div class="tile"><span class="k">% da produção</span><span class="v">${r.pctProducao === null ? "–" : pct(r.pctProducao, 1)}</span><span class="tiny muted">${r.prod ? fmtN(r.prod, 1) + " sc/ha" : "informe a produtividade"}</span></div>
+          <div class="tile"><span class="k">Sacas por ha</span><span class="v">${r.sacasHa === null ? "–" : fmtN(r.sacasHa, 2)}</span><span class="tiny muted">sc de ${cult}/ha</span></div>
+          <div class="tile t-ap"><span class="k">Impostos · ${fmtN(r.totalDesc * 100, 2)}%</span><span class="v">${r.impostosSacas === null ? "–" : fmtN(r.impostosSacas, 2)}</span><span class="tiny muted">sacas retidas</span></div></div>
+        <div class="note">${r.liquido ? `Custo em sacas por hectare: ${fmtN(r.area ? r.sacas / r.area : 0, 1)} sc/ha • arredondado para entrega: ${fmtN(r.sacasEntrega, 0)} sacas de ${cult}${r.producaoEstimada ? ` • produção estimada: ${fmtN(r.producaoEstimada, 0)} sc` : ""}` : "Informe o preço bruto da saca da cultura escolhida."}
+          <br>Preço líquido: ${r.liquido ? brl(r.liquido) : "–"} · descontos ${pct(r.totalDesc)} (INSS ${pct(r.inss)} + RAT ${pct(r.rat)} + Senar ${pct(r.senar)}${r.outras ? " + outras " + pct(r.outras) : ""}) · ${r.efetiva.toUpperCase()} · ${r.regime}</div>`.s;
+      view.querySelector("#cmp").innerHTML = html`<div class="card"><h3>Comparativo soja × milho</h3><div class="scroll-x"><table class="t"><tr><th>Por saca e no pedido</th><th style="text-align:right">Soja</th><th style="text-align:right">Milho</th></tr>
+        ${[["Preço bruto da saca", "bruto"], ["(–) Funrural INSS + RAT", "funrural"], ["(–) Senar", "senar"], ["(–) Outras deduções", "outras"], ["Preço líquido da saca", "liquido"], ["Sacas – total do pedido", "sacas", 0], ["Sacas por hectare", "sacasHa", 0]]
+          .map(([n, k, m]) => html`<tr${raw(k === "liquido" ? ' style="font-weight:700"' : "")}><td>${n}</td><td class="num" style="text-align:right">${col(r.soja, k, m !== 0)}</td><td class="num" style="text-align:right">${col(r.milho, k, m !== 0)}</td></tr>`)}</table></div></div>`.s;
+    };
+    shell();
+    view.addEventListener("input", (e) => {
+      const p = e.target.dataset && e.target.dataset.p; if (!p) return;
+      if (p.startsWith("aliq.")) { aliq = JSON.parse(JSON.stringify(aliq)); setP(aliq, p.slice(5), e.target.value); salvarAliq(); }
+      else { b[p] = e.target.value; salvar(); }
+      mark("Salvando…"); calc();
+    });
+    view.addEventListener("click", (e) => { if (e.target.closest("#resetaliq")) { aliq = JSON.parse(JSON.stringify(ALIQ_PADRAO)); salvarAliq(); shell(); App.toast("Alíquotas da planilha restauradas"); } });
+  }, { tab: "cotacoes", when: always });
+
+  /* ================= Receitas agronômicas (módulo próprio) ================= */
+  App.route("/receitas", async (view) => {
+    const d = await App.get("/api/receitas");
+    view.innerHTML = html`<div class="agro"><div class="row between"><h1>Receitas agronômicas</h1><button class="btn primary" id="nova">${I("sprout", "sm")} Nova receita</button></div>
+      <p class="small muted">Plano por operação (adubação, semente, dessecação e aplicações), com quantidades para a área, custo por hectare e o PDF da receita. Pode ser feita do zero ou a partir de uma cotação.</p>
+      ${d.items.length ? html`<div class="list">${d.items.map((r) => html`<a class="item" href="#/receitas/${r.id}"><div class="grow"><div class="title">${r.client || "Sem cliente"}${r.farm ? " · " + r.farm : ""}</div>
+        <div class="meta">${[r.crop, r.season, r.area_ha ? App.num(r.area_ha) + " ha" : "", r.n_produtos + " produto(s)", r.quote_number ? "cotação " + r.quote_number : ""].filter(Boolean).join(" · ")}</div></div><span class="small muted">${App.date(r.date)}</span></a>`)}</div>`
+      : html`<div class="card"><p class="muted" style="margin:0">Nenhuma receita ainda. Toque em <b>Nova receita</b>, ou abra uma cotação e use <b>Receita agronômica</b> para começar com os produtos dela.</p></div>`}</div>`.s;
+    view.querySelector("#nova").onclick = async (e) => { const r = await App.busy(e.target, () => App.post("/api/receitas", {}), "Criando…"); App.go(`#/receitas/${r.id}`); };
+  }, { tab: "mais", when: always });
+
+  App.route("/receitas/:id", async (view0, { id }) => {
+    const r = await App.get(`/api/receitas/${id}`);
+    const [clients, products, quotes] = await Promise.all([App.clientOptions(), App.get("/api/products?all=1").then((x) => x.items).catch(() => []), App.get("/api/quotes").then((x) => x.items || []).catch(() => [])]);
+    let quote = null;
+    const loadQuote = async () => { quote = r.quote_id ? await App.get(`/api/quotes/${r.quote_id}`).catch(() => null) : null; };
+    await loadQuote();
+    r.ops = { ...opsVazias(), ...(r.ops || {}) };
+    const view = fresh(view0);
+    const salvar = App.debounce(async () => { try { await App.put(`/api/receitas/${r.id}`, r); mark("Salvo"); } catch (e) { mark("Não salvou: " + (e.message || e)); } }, 700);
+    const mark = (t) => { const el = view.querySelector("#sv"); if (el) el.textContent = t; };
+    const quoteOpts = [["", "— nenhuma —"], ...quotes.filter((x) => x.is_current !== false).map((x) => [x.id, `${x.number} · ${nm(x.client_name || "")} · ${App.brl(x.total_cents)}`])];
+    const modOpts = [["", "—"], ...MODALIDADES.map((m) => [m, m])];
+
+    const render = () => {
+      const src = fontes(quote, products);
+      const nomes = [...new Set([...src.itens.map((i) => i.nome), ...products.map((p) => p.name)].filter(Boolean))];
+      view.innerHTML = html`<div class="agro">${App.backLink("#/receitas", "Receitas")}
+        <div class="row between"><div><div class="eyebrow">Receita agronômica</div><h1 style="margin:2px 0" id="ttl">${r.client_label || "Nova receita"}</h1></div>
+          <div class="row" style="gap:6px;align-items:center"><span class="saved" id="sv"></span><button class="btn accent" id="pdf">${I("download", "sm")} PDF da receita</button></div></div>
+        <div id="sum"></div>
+        <div class="card form"><h3>Dados da receita</h3><div class="kv">
+          <label>Cliente${sel("client_id", r.client_id || "", [["", "— escolha —"], ...clients], { label: "Cliente" })}</label>
+          <label>Produtor (se não cadastrado)${inp("client_name", r.client_name, { label: "Produtor" })}</label>
+          <label>Propriedade / fazenda${inp("farm", r.farm)}</label>
+          <label>Talhão${inp("field", r.field)}</label>
+          <label>Cultura${inp("crop", r.crop, { list: "agro-cult", ph: "Soja, Milho…" })}</label>
+          <label>Safra${inp("season", r.season, { ph: "2026/27" })}</label>
+          <label>Área (ha)${inp("area_ha", r.area_ha, { cls: "r", dec: 1, ph: "0" })}</label>
+          <label>Data${inp("date", r.date, { type: "date" })}</label>
+          <label>Cotação vinculada (preços e conferência)${sel("quote_id", r.quote_id || "", quoteOpts, { label: "Cotação vinculada" })}</label>
+          <label>Preço líquido da saca (R$, p/ sacas/ha)${inp("bag_price", r.bag_price, { cls: "r", dec: 1, ph: "0,00" })}</label>
+          <label>Responsável técnico${inp("tech_name", r.tech_name)}</label>
+          <label>CREA / registro${inp("tech_reg", r.tech_reg)}</label>
+          <label>ART (opcional)${inp("art", r.art)}</label></div>
+          <datalist id="agro-cult">${["Soja", "Milho", "Milho safrinha", "Sorgo", "Feijão", "Algodão", "Trigo", "Café", "Cana-de-açúcar"].map((c) => html`<option value="${c}"></option>`)}</datalist>
+          <p class="hint">Preço de cada produto: da cotação vinculada (preço final) ou, se não houver, do seu catálogo de Produtos. Informe a dose por hectare na mesma unidade em que o produto é vendido.</p></div>
+        <datalist id="agro-prods">${nomes.map((n) => html`<option value="${n}"></option>`)}</datalist>
+        <div class="card">${OPS.map((op) => html`<div class="op-h"><h3>${op.nome}</h3><span class="grow"></span><button class="btn sm" data-add="${op.key}">+ Linha</button></div>
+          <div class="scroll-x"><table class="t">${op.tipo === "semente"
+            ? html`<tr><th>Cultivar</th><th>Sementes/m</th><th>Espaç. (m)</th><th style="text-align:right">População/ha</th><th>Sementes/bag</th><th style="text-align:right">Bags</th><th style="text-align:right">Custo</th><th style="text-align:right">Custo/ha</th><th></th></tr>
+              ${r.ops[op.key].map((l, i) => html`<tr><td style="min-width:220px">${inp(`ops.${op.key}.${i}.produto`, l.produto, { list: "agro-prods", ph: "Cultivar" })}</td>
+                <td style="width:90px">${inp(`ops.${op.key}.${i}.sementesM`, l.sementesM, { cls: "r", dec: 1 })}</td><td style="width:84px">${inp(`ops.${op.key}.${i}.espac`, l.espac, { cls: "r", dec: 1 })}</td>
+                <td class="c" id="c-${op.key}-${i}-pop"></td><td style="width:110px">${inp(`ops.${op.key}.${i}.sementesBag`, l.sementesBag, { cls: "r", dec: 1 })}</td>
+                <td class="c" id="c-${op.key}-${i}-qtd"></td><td class="c" id="c-${op.key}-${i}-custo"></td><td class="c" id="c-${op.key}-${i}-ha"></td>
+                <td><button class="x" data-rm="${op.key}:${i}" aria-label="Remover linha">×</button></td></tr>`)}`
+            : html`<tr><th>Produto</th><th>Dose/ha</th><th>Unid.</th><th style="text-align:right">Qtd. na área</th><th>Alvo / objetivo</th><th>Modalidade</th><th style="text-align:right">Custo</th><th style="text-align:right">Custo/ha</th><th></th></tr>
+              ${r.ops[op.key].map((l, i) => html`<tr><td style="min-width:220px">${inp(`ops.${op.key}.${i}.produto`, l.produto, { list: "agro-prods", ph: "Produto" })}</td>
+                <td style="width:84px">${inp(`ops.${op.key}.${i}.dose`, l.dose, { cls: "r", dec: 1 })}</td><td class="small muted" id="c-${op.key}-${i}-un" style="white-space:nowrap"></td>
+                <td class="c" id="c-${op.key}-${i}-qtd"></td><td style="min-width:140px">${inp(`ops.${op.key}.${i}.alvo`, l.alvo)}</td>
+                <td style="width:118px">${sel(`ops.${op.key}.${i}.modalidade`, l.modalidade, modOpts)}</td>
+                <td class="c" id="c-${op.key}-${i}-custo"></td><td class="c" id="c-${op.key}-${i}-ha"></td>
+                <td><button class="x" data-rm="${op.key}:${i}" aria-label="Remover linha">×</button></td></tr>`)}`}
+            <tr class="sub"><td colspan="${op.tipo === "semente" ? 6 : 6}">Subtotal · ${op.nome}</td><td class="c" id="s-${op.key}"></td><td class="c" id="sh-${op.key}"></td><td></td></tr></table></div>`)}</div>
+        <div id="res"></div>
+        <div class="card form"><h3>Observações da receita</h3><textarea class="in" data-p="notes" rows="3" placeholder="Recomendações, intervalo de segurança, EPI, condições de aplicação…">${r.notes || ""}</textarea></div>
+        <div class="btn-bar"><button class="btn" id="dup">${I("copy", "sm")} Duplicar</button>${quote ? html`<a class="btn" href="#/cotacoes/${quote.id}">Abrir cotação ${quote.number}</a>` : ""}<button class="btn ghost" id="del">Excluir</button></div></div>`.s;
+      calc();
+    };
+    const calc = () => {
+      const src = fontes(quote, products), c = calcReceita(r, src);
+      const custoTxt = (x) => (x === null ? "" : x === "fora" ? '<span class="fora" title="Produto não está na cotação nem no catálogo">sem preço</span>' : x === "sem" ? '<span class="sem">sem preço no catálogo</span>' : App.esc(brl(x)));
+      c.ops.forEach((op) => {
+        op.linhas.forEach((l, i) => {
+          const set = (k, v, isHtml) => { const el = view.querySelector(`#c-${op.key}-${i}-${k}`); if (el) { if (isHtml) el.innerHTML = v; else el.textContent = v; } };
+          if (op.tipo === "semente") set("pop", l.pop === null ? "" : fmtN(l.pop, 0)); else set("un", l.nome && l.m ? (l.unid || "") + "/ha" : "");
+          set("qtd", l.qtd === null ? "" : (op.tipo === "semente" ? fmtN(l.qtd, 0) : fmtN(l.qtd, 2) + (l.unid ? " " + l.unid : "")));
+          set("custo", custoTxt(l.custo), true); set("ha", l.custoHa === null ? "" : brl(l.custoHa));
+        });
+        const s = view.querySelector(`#s-${op.key}`), sh = view.querySelector(`#sh-${op.key}`); if (s) s.textContent = brl(op.custo); if (sh) sh.textContent = brl(op.custoHa);
+      });
+      const tl = view.querySelector("#ttl"); if (tl) { const o = view.querySelector('[data-p="client_id"]'); tl.textContent = (o && o.value ? o.options[o.selectedIndex].text.split(" — ")[0] : r.client_name) || "Nova receita"; }
+      view.querySelector("#sum").innerHTML = html`<div class="tiles" style="margin:10px 0">
+        <div class="tile"><span class="k">Custo da receita</span><span class="v">${brl(c.total)}</span><span class="tiny muted">${c.nProdutos} produto(s)</span></div>
+        <div class="tile"><span class="k">Custo por ha</span><span class="v">${brl(c.totalHa)}</span><span class="tiny muted">${fmtN(c.area, 1)} ha</span></div>
+        <div class="tile"><span class="k">Sacas por ha</span><span class="v">${c.sacasHa === null ? "–" : fmtN(c.sacasHa, 2)}</span><span class="tiny muted">${c.liq ? "saca líquida " + brl(c.liq) : "informe o preço da saca"}</span></div>
+        ${quote ? html`<div class="tile ${c.fechados === c.conferencia.length && c.conferencia.length ? "t-av" : "t-ap"}"><span class="k">Cotação na receita · ${c.fechados} de ${c.conferencia.length}</span><span class="v">${c.pctCotacao === null ? "–" : pct(c.pctCotacao, 1)}</span><span class="tiny muted">${quote.number} · ${App.brl(quote.total_cents)}</span></div>` : ""}</div>
+        ${!c.area ? html`<div class="note">Informe a <b>área (ha)</b> para calcular quantidades e custos.</div>` : ""}`.s;
+      view.querySelector("#res").innerHTML = html`<div class="card"><h3>Resumo do custo por operação</h3><div class="scroll-x"><table class="t"><tr><th>Operação</th><th style="text-align:right">Custo total</th><th style="text-align:right">Custo/ha</th><th style="text-align:right">Sacas/ha</th><th style="text-align:right">% do total</th></tr>
+        ${c.ops.map((o) => html`<tr><td>${o.nome}</td><td class="c">${brl(o.custo)}</td><td class="c">${brl(o.custoHa)}</td><td class="c">${o.sacasHa === null ? "" : fmtN(o.sacasHa, 2)}</td><td class="c">${pct(o.pct, 1)}</td></tr>`)}
+        <tr class="sub"><td>Total da receita</td><td class="c">${brl(c.total)}</td><td class="c">${brl(c.totalHa)}</td><td class="c">${c.sacasHa === null ? "" : fmtN(c.sacasHa, 2)}</td><td class="c">${pct(c.total ? 1 : 0, 1)}</td></tr></table></div></div>
+        ${quote ? html`<div class="card"><h3>Conferência · cotação ${quote.number} × receita</h3><div class="scroll-x"><table class="t"><tr><th>Produto da cotação</th><th>Unid.</th><th style="text-align:right">Cotado</th><th style="text-align:right">Na receita</th><th style="text-align:right">Saldo</th><th>Situação</th></tr>
+          ${c.conferencia.length ? c.conferencia.map((x) => html`<tr><td>${x.nome}</td><td>${x.unid}</td><td class="c">${fmtQ(x.qt)}</td><td class="c">${fmtQ(x.naReceita)}</td><td class="c">${fmtQ(x.saldo)}</td><td><span class="chip ${x.tipo}">${x.situacao}</span></td></tr>`) : html`<tr><td colspan="6" class="muted">Nenhum item completo na cotação.</td></tr>`}</table></div>
+          <p class="hint">Custo usa o preço final da cotação. Para sementes, a quantidade conferida é o número de bags.</p></div>` : ""}`.s;
+      return c;
+    };
+    render();
+    view.addEventListener("input", (e) => {
+      const p = e.target.dataset && e.target.dataset.p; if (!p) return;
+      setP(r, p, e.target.value); mark("Salvando…"); salvar();
+      if (p === "quote_id" || p === "client_id") return; // tratados no change
+      calc();
+    });
+    view.addEventListener("change", async (e) => {
+      const p = e.target.dataset && e.target.dataset.p; if (!p) return;
+      if (p === "quote_id") { r.quote_id = e.target.value ? Number(e.target.value) : null; await loadQuote(); render(); }
+      else if (p === "client_id") { r.client_id = e.target.value ? Number(e.target.value) : null; calc(); }
+    });
+    view.addEventListener("click", async (e) => {
+      const add = e.target.closest("[data-add]"), rm = e.target.closest("[data-rm]");
+      if (add) { const op = OPS.find((o) => o.key === add.dataset.add); r.ops[op.key].push(novaLinha(op.tipo)); salvar(); render(); return; }
+      if (rm) { const [k, i] = rm.dataset.rm.split(":"); r.ops[k].splice(Number(i), 1); if (!r.ops[k].length) r.ops[k].push(novaLinha(OPS.find((o) => o.key === k).tipo)); salvar(); render(); return; }
+      if (e.target.closest("#pdf")) { const c = calc(); pdfModal(r, c, quote); return; }
+      if (e.target.closest("#dup")) { const n = await App.busy(e.target.closest("#dup"), () => App.post(`/api/receitas/${r.id}/duplicate`, {})); App.toast("Receita duplicada", "ok"); App.go(`#/receitas/${n.id}`); return; }
+      if (e.target.closest("#del")) { if (!(await App.confirm("Excluir receita", "A receita sai da lista.", "Excluir"))) return; await App.put(`/api/receitas/${r.id}`, r).catch(() => {}); await App.api("DELETE", `/api/receitas/${r.id}`); App.toast("Receita excluída"); App.go("#/receitas"); }
+    });
+  }, { tab: "mais", when: always });
+
+  /* ================= PDF da receita ================= */
+  function pdfModal(r, c, quote) {
+    App.modal({
+      title: "PDF da receita agronômica",
+      body: html`<form class="form">${App.field("costs", "Mostrar custos no PDF", { type: "checkbox", value: r.show_costs !== false })}
+        <p class="hint">O PDF traz cliente, área, cultura, cada operação com produto, dose/ha, quantidade para a área, alvo e modalidade, observações e o espaço para assinatura do responsável técnico.</p>
+        <p class="hint">Para a venda de defensivos, a receita agronômica oficial é emitida por profissional habilitado (com CREA e os dados exigidos pela legislação). Use este PDF como recomendação técnica ou anexo ao receituário oficial.</p></form>`.s,
+      actions: [{ label: "Baixar PDF", cls: "primary", onClick: async (close, m) => {
+        const v = App.readForm(m); close(1); r.show_costs = !!v.costs;
+        App.put(`/api/receitas/${r.id}`, { show_costs: r.show_costs }).catch(() => {});
+        try { App.toast("Gerando PDF…"); const f = await receitaPdf(r, c, quote, r.show_costs); await App.save(f.filename, f.data); }
+        catch (e) { console.error(e); App.toast("Erro ao gerar o PDF: " + (e.message || e), "error"); }
+      } }],
+    });
+  }
+  async function receitaPdf(r, c, quote, costs) {
+    const Pdf = window.Docs.Pdf;
+    const cliente = r.client_label || r.client_name || "";
+    const sel = document.querySelector('[data-p="client_id"]');
+    const nomeCli = sel && sel.value ? sel.options[sel.selectedIndex].text.split(" — ")[0] : cliente;
+    const d = await new Pdf().init(`Receita agronômica${nomeCli ? " — " + nomeCli : ""}`);
+    d.kv([["Cliente", nomeCli || "—"], ["Propriedade / fazenda", r.farm], ["Talhão", r.field], ["Cultura", r.crop], ["Safra", r.season],
+      ["Área", c.area ? fmtN(c.area, 2) + " ha" : "—"], ["Data", App.date(r.date)], ["Cotação", quote ? quote.number : ""]], 3);
+    c.ops.forEach((op) => {
+      const ls = op.linhas.filter((l) => l.nome);
+      if (!ls.length) return;
+      d.y -= 10; d.h2(op.nome);
+      if (op.tipo === "semente") {
+        const h = ["Cultivar", "Sementes/m", "Espaçamento", "População/ha", "Bags"]; const w = [34, 13, 13, 16, 10]; const a = ["l", "r", "r", "r", "r"];
+        if (costs) { h.push("Custo/ha"); w.push(14); a.push("r"); }
+        const linhas = (r.ops.semente || []).filter((l) => String(l.produto || "").trim());
+        d.table(h, ls.map((l, i) => { const src = linhas[i] || {}; const row = [[{ t: l.nome, bold: true }], src.sementesM || "—", src.espac ? src.espac + " m" : "—", l.pop === null ? "—" : fmtN(l.pop, 0), l.bags === null ? "—" : fmtN(l.bags, 0)]; if (costs) row.push(l.custoHa === null ? "—" : brl(l.custoHa)); return row; }), w, a);
+      } else {
+        const h = ["Produto", "Dose/ha", "Qtd. na área", "Alvo / objetivo", "Modalidade"]; const w = [30, 12, 16, 24, 12]; const a = ["l", "r", "r", "l", "l"];
+        if (costs) { h.push("Custo/ha"); w.push(13); a.push("r"); }
+        const origem = (r.ops[op.key] || []).filter((l) => String(l.produto || "").trim());
+        d.table(h, ls.map((l, i) => { const o = origem[i] || {}; const row = [[{ t: l.nome, bold: true }], l.dose === null ? "—" : fmtQ(l.dose) + (l.unid ? " " + l.unid + "/ha" : "/ha"), l.qtd === null ? "—" : fmtN(l.qtd, 2) + (l.unid ? " " + l.unid : ""), o.alvo || "—", o.modalidade || "—"]; if (costs) row.push(l.custoHa === null ? "—" : brl(l.custoHa)); return row; }), w, a);
+      }
+    });
+    if (costs) {
+      d.y -= 22;
+      const t = [["Custo total da receita", brl(c.total)], ["Custo por hectare", brl(c.totalHa)]];
+      if (c.sacasHa !== null) t.push(["Sacas por hectare", fmtN(c.sacasHa, 2) + " sc/ha"]);
+      d.totals(t.map((x, i) => [x[0], x[1], i === 0]));
+    }
+    if (r.notes) { d.y -= 10; d.h2("Observações"); d.para(r.notes); }
+    // assinatura do responsável técnico
+    d.ensure(90); d.y -= 46;
+    const x0 = d.W / 2 - 130, x1 = d.W / 2 + 130;
+    d.page.drawLine({ start: { x: x0, y: d.y }, end: { x: x1, y: d.y }, thickness: 0.8, color: d.black });
+    const center = (t, y, o = {}) => { const font = o.bold ? d.fb : d.f; const s = o.size || 10; const w = font.widthOfTextAtSize(String(t).replace(/[^\x20-\xFF]/g, ""), s); d.text(t, d.W / 2 - w / 2, y, { size: s, bold: o.bold, color: o.color }); };
+    center(r.tech_name || "Responsável técnico", d.y - 13, { bold: true });
+    const reg = [r.tech_reg ? "CREA/registro " + r.tech_reg : "", r.art ? "ART " + r.art : ""].filter(Boolean).join(" · ");
+    if (reg) center(reg, d.y - 26, { size: 9, color: d.gray });
+    d.y -= 40;
+    const bytes = await d.bytes();
+    const slug = (s) => String(s || "cliente").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 40);
+    return { filename: `Receita_${slug(nomeCli)}_${(r.date || B.todayIso()).replace(/-/g, "")}.pdf`, data: new Blob([bytes], { type: "application/pdf" }) };
+  }
+
+  /* ================= Atalhos na cotação ================= */
+  App.agroAbrirReceita = async (q, btn) => {
+    const ex = await App.get(`/api/receitas?quote_id=${q.id}`).catch(() => ({ items: [] }));
+    if (ex.items.length) return App.go(`#/receitas/${ex.items[0].id}`);
+    const r = await App.busy(btn, () => App.post("/api/receitas", { quote_id: q.id }), "Criando…");
+    App.toast("Receita criada com os produtos da cotação", "ok"); App.go(`#/receitas/${r.id}`);
+  };
 })();
 
 App.start();</script>
