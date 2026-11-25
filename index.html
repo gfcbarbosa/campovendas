@@ -477,7 +477,443 @@ html.d-compact h1{font-size:1.38rem}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .welcome-logo img{filter:brightness(0) invert(1)}}
 
 .content{padding-top:max(14px,env(safe-area-inset-top))}
-</style><link rel="manifest" href="manifest.webmanifest"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="CampoVendas"><link rel="apple-touch-icon" href="icon-180.png"><script>if("serviceWorker" in navigator && /^https?:$/.test(location.protocol)){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").then(function(r){r.addEventListener("updatefound",function(){var w=r.installing;w&&w.addEventListener("statechange",function(){if(w.state==="installed"&&navigator.serviceWorker.controller){window.CV_UPDATE=true;try{App.toast("Nova versão disponível: feche e abra o app para atualizar")}catch(e){}}})})}).catch(function(){})})}</script>
+</style><link rel="manifest" href="manifest.webmanifest"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="CampoVendas"><link rel="apple-touch-icon" href="icon-180.png"><script>if("serviceWorker" in navigator && /^https?:$/.test(location.protocol)){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").then(function(r){r.addEventListener("updatefound",function(){var w=r.installing;w&&w.addEventListener("statechange",function(){if(w.state==="installed"&&navigator.serviceWorker.controller){window.CV_UPDATE=true;try{App.toast("Nova versão disponível: feche e abra o app para atualizar")}catch(e){}}})})}).catch(function(){})})}</script><script>window.CV_CLOUD_CONFIG={"url": "https://luoxidbcggzpopuxzbrs.supabase.co", "key": "sb_publishable_oaVj2I7U5fLK96_wjBkQmw_IKNPPCk8"};</script><script>/* Sincronização na nuvem (Supabase) para o app instalado.
+   Cada aparelho guarda tudo localmente (funciona sem internet no campo) e, quando há conexão,
+   troca as alterações com a nuvem. Conflitos são resolvidos linha a linha: o que cada aparelho
+   alterou é preservado. Login com e-mail e senha; cada pessoa só enxerga os próprios dados. */
+(function () {
+  "use strict";
+  const CFG = window.CV_CLOUD_CONFIG;
+  if (!CFG || !CFG.url || !CFG.key || !/^https?:$/.test(location.protocol)) return;
+  const API = CFG.url.replace(/\/+$/, ""), KEY = CFG.key;
+  const SKEY = "cv_cloud_session";
+  const clone = (o) => (o === undefined ? undefined : JSON.parse(JSON.stringify(o)));
+  const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const enc = encodeURIComponent;
+
+  /* ---------- sessão ---------- */
+  let sess = null;
+  try { sess = JSON.parse(localStorage.getItem(SKEY) || "null"); } catch (e) { sess = null; }
+  const saveSess = () => { try { sess ? localStorage.setItem(SKEY, JSON.stringify(sess)) : localStorage.removeItem(SKEY); } catch (e) {} };
+  const setSess = (r) => {
+    sess = { access_token: r.access_token, refresh_token: r.refresh_token, expires_at: r.expires_at || Math.floor(Date.now() / 1000) + (r.expires_in || 3600),
+      user: { id: r.user.id, email: r.user.email, name: (r.user.user_metadata && r.user.user_metadata.name) || "" } };
+    saveSess();
+  };
+  const authErr = (d, status) => {
+    const m = (d && (d.msg || d.error_description || d.message || d.error)) || "";
+    if (/invalid login credentials/i.test(m)) return "E-mail ou senha incorretos.";
+    if (/already registered|already exists/i.test(m)) return "Este e-mail já tem conta. Use \"Entrar\".";
+    if (/password should be at least|weak/i.test(m)) return "Senha fraca: use pelo menos 8 caracteres, com letras e números.";
+    if (/email not confirmed/i.test(m)) return "Confirme o e-mail que o Supabase enviou e tente de novo.";
+    if (/signups not allowed|signup is disabled/i.test(m)) return "Cadastro de novas contas está fechado.";
+    if (/rate limit/i.test(m)) return "Muitas tentativas. Aguarde um pouco e tente de novo.";
+    return m || `Erro ${status || ""}`.trim();
+  };
+  async function authCall(path, body, token) {
+    let r;
+    try {
+      r = await fetch(API + "/auth/v1/" + path, { method: body === undefined ? "GET" : (path === "user" ? "PUT" : "POST"),
+        headers: { apikey: KEY, "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}) },
+        body: body === undefined ? undefined : JSON.stringify(body) });
+    } catch (e) { throw { code: "offline", message: "Sem internet. Para entrar pela primeira vez neste aparelho, conecte-se." }; }
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw { code: "auth", status: r.status, message: authErr(d, r.status) };
+    return d;
+  }
+  let refreshing = null;
+  async function refresh() {
+    if (!sess) throw { code: "revoked" };
+    if (!refreshing) refreshing = (async () => {
+      try { const d = await authCall("token?grant_type=refresh_token", { refresh_token: sess.refresh_token }); setSess(d); }
+      catch (e) { if (e.code === "auth" && e.status >= 400 && e.status < 500) { state.needLogin = true; changed(); } throw e; }
+      finally { refreshing = null; }
+    })();
+    return refreshing;
+  }
+  async function rest(method, path, body, prefer) {
+    if (!sess) throw { code: "revoked" };
+    if (sess.expires_at - 60 < Date.now() / 1000) await refresh();
+    const go = () => fetch(API + "/rest/v1/" + path, { method, headers: { apikey: KEY, Authorization: "Bearer " + sess.access_token,
+      "Content-Type": "application/json", ...(prefer ? { Prefer: prefer } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+    let r;
+    try { r = await go(); } catch (e) { throw { code: "offline" }; }
+    if (r.status === 401) { await refresh(); try { r = await go(); } catch (e) { throw { code: "offline" }; } }
+    if (r.status === 409) throw { code: "conflict" };
+    const d = await r.json().catch(() => null);
+    if (!r.ok) throw { code: "server", status: r.status, message: (d && d.message) || `Erro ${r.status}` };
+    return d;
+  }
+
+  /* ---------- cópia local (IndexedDB) ---------- */
+  const map = new Map();                 // path -> {path,data,deleted,rev,base,baseDeleted,dirty,remote,lv}
+  let meta = { cursor: null, migrated: false };
+  let idb = null;
+  function openIdb(uid) {
+    return new Promise((res) => {
+      try {
+        const r = indexedDB.open("campovendas-nuvem-" + uid, 1);
+        r.onupgradeneeded = () => { r.result.createObjectStore("docs", { keyPath: "path" }); r.result.createObjectStore("meta"); };
+        r.onsuccess = () => res(r.result); r.onerror = () => res(null);
+      } catch (e) { res(null); }
+    });
+  }
+  const idbAll = (store) => new Promise((res) => {
+    if (!idb) return res([]);
+    try { const q = idb.transaction(store).objectStore(store).getAll(); q.onsuccess = () => res(q.result || []); q.onerror = () => res([]); } catch (e) { res([]); }
+  });
+  const idbGet = (store, key) => new Promise((res) => {
+    if (!idb) return res(undefined);
+    try { const q = idb.transaction(store).objectStore(store).get(key); q.onsuccess = () => res(q.result); q.onerror = () => res(undefined); } catch (e) { res(undefined); }
+  });
+  const saveEntries = (entries) => new Promise((res) => {
+    if (!idb || !entries.length) return res();
+    try {
+      const t = idb.transaction("docs", "readwrite"); const st = t.objectStore("docs");
+      entries.forEach((e) => { const { remote, ...rest } = e; st.put(clone(rest)); });
+      t.oncomplete = () => res(); t.onerror = () => res(); t.onabort = () => res();
+    } catch (e) { res(); }
+  });
+  const saveMeta = () => new Promise((res) => {
+    if (!idb) return res();
+    try { const t = idb.transaction("meta", "readwrite"); t.objectStore("meta").put(clone(meta), "meta"); t.oncomplete = () => res(); t.onerror = () => res(); } catch (e) { res(); }
+  });
+
+  /* ---------- estado e avisos ---------- */
+  const state = { online: navigator.onLine, syncing: false, error: null, needLogin: false, lastSync: null };
+  const pendingCount = () => { let n = 0; map.forEach((e) => { if (e.dirty) n++; }); return n; };
+  function changed() { try { if (window.App && window.App.updateSync) window.App.updateSync(); } catch (e) {} }
+  window.CV_CLOUD = {
+    state,
+    pending: pendingCount,
+    label() {
+      const n = pendingCount();
+      if (state.needLogin) return { cls: "error", txt: "Entre de novo para sincronizar" };
+      if (!state.online) return { cls: "offline", txt: n ? `Sem internet · ${n} para enviar` : "Sem internet · salvo no aparelho" };
+      if (state.error) return { cls: "error", txt: "Erro ao sincronizar" };
+      if (state.syncing || n) return { cls: "saving", txt: "Sincronizando…" };
+      return { cls: "saved", txt: "Sincronizado" };
+    },
+    syncNow: () => cycle(true),
+  };
+
+  /* ---------- assinaturas (o app e o módulo de solo escutam mudanças) ---------- */
+  const subs = new Set();
+  const parentOf = (p) => p.slice(0, p.lastIndexOf("/"));
+  const exists = (e) => !!e && !e.deleted && e.data != null;
+  const snapOf = (e, path, pending) => ({ id: path.split("/").pop(), exists: exists(e), data: () => (exists(e) ? clone(e.data) : undefined),
+    metadata: { fromCache: false, hasPendingWrites: !!pending }, ref: { path } });
+  function listCol(col, filter) {
+    const out = [];
+    map.forEach((e, p) => { if (parentOf(p) === col && exists(e) && (!filter || filter(e.data))) out.push(snapOf(e, p)); });
+    out.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    return out;
+  }
+  function emit(paths, pending) {
+    if (!paths.length) return;
+    subs.forEach((s) => {
+      const mine = paths.filter((p) => parentOf(p) === s.col);
+      if (!mine.length) return;
+      const docs = listCol(s.col, s.filter);
+      const changes = mine.map((p) => { const e = map.get(p); return { type: exists(e) ? "modified" : "removed", doc: snapOf(e, p, pending), oldIndex: -1, newIndex: -1 }; });
+      try { s.next({ docs, size: docs.length, empty: !docs.length, docChanges: () => changes, metadata: { fromCache: false, hasPendingWrites: !!pending } }); } catch (e) { console.error(e); }
+    });
+  }
+
+  /* ---------- escrita local ---------- */
+  async function writeLocal(path, data, deleted) {
+    let e = map.get(path);
+    if (!e) { e = { path, data: null, deleted: true, rev: null, base: null, baseDeleted: true, dirty: false, lv: 0 }; map.set(path, e); }
+    e.data = deleted ? null : clone(data); e.deleted = !!deleted; e.dirty = true; e.lv = (e.lv || 0) + 1;
+    await saveEntries([e]);
+    emit([path], true);
+    changed(); schedule(600);
+  }
+
+  /* ---------- mescla linha a linha ---------- */
+  const isChunk = (o) => o && typeof o === "object" && o.rows && typeof o.rows === "object" && !Array.isArray(o.rows);
+  function merge(e, theirs, theirsDel) {
+    if (e.deleted) return e.baseDeleted ? { data: theirs, deleted: theirsDel } : { data: null, deleted: true };
+    if (theirsDel || theirs == null) return { data: e.data, deleted: false };
+    if (isChunk(e.data) && isChunk(theirs)) {
+      const out = clone(theirs); const base = (isChunk(e.base) && e.base.rows) || {};
+      const ids = new Set([...Object.keys(base), ...Object.keys(e.data.rows)]);
+      ids.forEach((id) => {
+        const m = e.data.rows[id];
+        if (JSON.stringify(m) !== JSON.stringify(base[id])) { if (m === undefined) delete out.rows[id]; else out.rows[id] = clone(m); }
+      });
+      Object.keys(e.data).forEach((k) => { if (k !== "rows") out[k] = clone(e.data[k]); });
+      return { data: out, deleted: false };
+    }
+    return { data: e.data, deleted: false };
+  }
+
+  /* ---------- envio e recebimento ---------- */
+  const ROWSEL = "select=path,data,deleted,updated_at";
+  async function fetchRow(path) {
+    const rows = await rest("GET", `cv_docs?${ROWSEL}&path=eq.${enc(path)}`);
+    return rows && rows[0] ? rows[0] : null;
+  }
+  async function pushOne(e) {
+    const lv = e.lv;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const theirs = e.remote || { data: e.base, deleted: e.baseDeleted, rev: e.rev };
+      const m = merge(e, theirs.data, theirs.deleted);
+      let row = null;
+      try {
+        if (theirs.rev) {
+          const r = await rest("PATCH", `cv_docs?path=eq.${enc(e.path)}&updated_at=eq.${enc(theirs.rev)}&${ROWSEL}`, { data: m.data, deleted: m.deleted }, "return=representation");
+          row = r && r[0];
+          if (!row) { const cur = await fetchRow(e.path); e.remote = cur ? { data: cur.data, deleted: cur.deleted, rev: cur.updated_at } : { data: null, deleted: true, rev: null }; continue; }
+        } else {
+          if (m.deleted) { row = { data: null, deleted: true, updated_at: null }; }
+          else {
+            try {
+              const r = await rest("POST", `cv_docs?${ROWSEL}`, { path: e.path, data: m.data, deleted: false }, "return=representation");
+              row = r && r[0];
+            } catch (er) {
+              if (er.code !== "conflict") throw er;
+              const cur = await fetchRow(e.path); e.remote = cur ? { data: cur.data, deleted: cur.deleted, rev: cur.updated_at } : null; continue;
+            }
+          }
+        }
+      } catch (er) { throw er; }
+      const incorporated = JSON.stringify(m.data) !== JSON.stringify(e.data) || m.deleted !== e.deleted;
+      e.base = clone(m.data); e.baseDeleted = m.deleted; e.rev = row.updated_at || null; e.remote = null;
+      if (e.lv === lv) { e.data = clone(m.data); e.deleted = m.deleted; e.dirty = false; }
+      await saveEntries([e]);
+      if (incorporated && e.lv === lv) emit([e.path], false);
+      return;
+    }
+    throw { code: "server", message: "Conflito persistente ao sincronizar" };
+  }
+  async function push() {
+    const list = []; map.forEach((e) => { if (e.dirty) list.push(e); });
+    for (const e of list) await pushOne(e);
+  }
+  async function pull() {
+    const since = meta.cursor ? new Date(Date.parse(meta.cursor) - 15000).toISOString() : null;
+    let offset = 0, maxTs = meta.cursor; const touched = []; const save = [];
+    for (;;) {
+      const q = `cv_docs?${ROWSEL}${since ? "&updated_at=gte." + enc(since) : ""}&order=updated_at.asc,path.asc&limit=500&offset=${offset}`;
+      const rows = await rest("GET", q) || [];
+      rows.forEach((r) => {
+        if (!maxTs || r.updated_at > maxTs) maxTs = r.updated_at;
+        let e = map.get(r.path);
+        if (e && e.rev === r.updated_at) return;
+        if (!e) { e = { path: r.path, lv: 0 }; map.set(r.path, e); }
+        if (e.dirty) { e.remote = { data: r.data, deleted: r.deleted, rev: r.updated_at }; return; }
+        Object.assign(e, { data: r.deleted ? null : r.data, deleted: !!r.deleted, rev: r.updated_at, base: r.deleted ? null : r.data, baseDeleted: !!r.deleted, dirty: false, remote: null });
+        touched.push(r.path); save.push(e);
+      });
+      if (rows.length < 500) break;
+      offset += rows.length;
+    }
+    await saveEntries(save);
+    if (maxTs !== meta.cursor) { meta.cursor = maxTs; await saveMeta(); }
+    emit(touched, false);
+    return touched.length;
+  }
+  let running = null, timer = null;
+  async function cycle(force) {
+    if (running) return running;
+    if (!sess || state.needLogin) return;
+    running = (async () => {
+      state.syncing = true; changed();
+      try { await push(); await pull(); if (pendingCount()) await push(); state.error = null; state.online = true; state.lastSync = Date.now(); }
+      catch (e) {
+        if (e && e.code === "offline") state.online = false;
+        else if (e && e.code === "revoked") state.needLogin = true;
+        else { state.error = (e && e.message) || "erro"; console.error("sync", e); }
+      } finally { state.syncing = false; running = null; changed(); }
+    })();
+    return running;
+  }
+  function schedule(ms) { clearTimeout(timer); timer = setTimeout(() => cycle(), ms); }
+  setInterval(() => { if (!document.hidden) cycle(); }, 15000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) cycle(); });
+  window.addEventListener("online", () => { state.online = true; cycle(); });
+  window.addEventListener("offline", () => { state.online = false; changed(); });
+
+  /* ---------- primeira vez: leva para a nuvem o que já está neste aparelho ---------- */
+  function readOldLocal() {
+    return new Promise((res) => {
+      try {
+        const r = indexedDB.open("campovendas");
+        r.onupgradeneeded = () => { try { r.transaction.abort(); } catch (e) {} res([]); };
+        r.onsuccess = () => {
+          const db = r.result;
+          if (!db.objectStoreNames.contains("docs")) { db.close(); return res([]); }
+          const t = db.transaction("docs"); const st = t.objectStore("docs");
+          const range = IDBKeyRange.bound("data/users/local/", "data/users/local/￿");
+          const k = st.getAllKeys(range), v = st.getAll(range);
+          t.oncomplete = () => { db.close(); res((k.result || []).map((key, i) => [key, v.result[i]])); };
+          t.onerror = () => { db.close(); res([]); };
+        };
+        r.onerror = () => res([]);
+      } catch (e) { res([]); }
+    });
+  }
+  async function migrate(uid) {
+    if (meta.migrated) return;
+    const pre = "data/users/" + uid + "/";
+    const hasCloud = (sub) => { let f = false; map.forEach((e, p) => { if (p.startsWith(pre + sub) && exists(e)) f = true; }); return f; };
+    const add = [];
+    if (!hasCloud("store/chunks/")) {
+      (await readOldLocal()).forEach(([key, body]) => { if (body != null) add.push([pre + key.slice("data/users/local/".length), body]); });
+    }
+    if (!hasCloud("solo/talhoes/")) {
+      try {
+        const d = JSON.parse(localStorage.getItem("solo-cerrado-dados") || "{}");
+        Object.keys(d).forEach((id) => add.push([pre + "solo/talhoes/" + id, d[id]]));
+      } catch (e) {}
+    }
+    for (const [p, body] of add) {
+      let e = map.get(p);
+      if (!e) { e = { path: p, data: null, deleted: true, rev: null, base: null, baseDeleted: true, lv: 0 }; map.set(p, e); }
+      e.data = clone(body); e.deleted = false; e.dirty = true; e.lv = (e.lv || 0) + 1;
+    }
+    await saveEntries(add.map(([p]) => map.get(p)));
+    meta.migrated = true; meta.migratedCount = add.length; await saveMeta();
+  }
+
+  /* ---------- faixa de numeração deste aparelho ---------- */
+  async function claimSlot(uid) {
+    if (meta.slot == null) {
+      const col = "data/users/" + uid + "/devices";
+      const used = new Set(listCol(col).map((d) => Number(String(d.id).replace("s", ""))));
+      let k = 0; while (used.has(k) && k < 10) k++;
+      if (k >= 10) k = Math.floor(Math.random() * 10);
+      const ua = navigator.userAgent;
+      const nome = /iPad/.test(ua) || (/Macintosh/.test(ua) && "ontouchend" in document) ? "iPad" : /iPhone/.test(ua) ? "iPhone" : /Android/.test(ua) ? "Android" : /Mac/.test(ua) ? "Mac" : "Computador";
+      await writeLocal(col + "/s" + k, { slot: k, aparelho: nome, desde: new Date().toISOString() }, false);
+      meta.slot = k; await saveMeta();
+    }
+    window.CV_ID_SLOT = meta.slot;
+  }
+
+  /* ---------- contrato de dados usado pelo app (mesmo do Claude) ---------- */
+  function docRef(path) {
+    return {
+      id: path.split("/").pop(), path,
+      async get() { return snapOf(map.get(path), path); },
+      async set(body) { await writeLocal(path, body, false); },
+      async update(body) { const cur = map.get(path); await writeLocal(path, { ...(exists(cur) ? cur.data : {}), ...body }, false); },
+      async delete() { await writeLocal(path, null, true); },
+      collection: (name) => colRef(path + "/" + name),
+    };
+  }
+  function colRef(col, filter) {
+    const q = {
+      path: col,
+      doc: (id) => docRef(col + "/" + id),
+      limit() { return q; }, orderBy() { return q; },
+      where(f, op, v) { return colRef(col, (d) => (!filter || filter(d)) && (op === "==" ? d && d[f] === v : true)); },
+      async get() { const docs = listCol(col, filter); return { docs, size: docs.length, empty: !docs.length, docChanges: () => [], metadata: { fromCache: false, hasPendingWrites: false } }; },
+      onSnapshot(next, error) {
+        const s = { col, filter, next, error }; subs.add(s);
+        const docs = listCol(col, filter);
+        setTimeout(() => { if (subs.has(s)) next({ docs, size: docs.length, empty: !docs.length, docChanges: () => [], metadata: { fromCache: false, hasPendingWrites: false } }); }, 0);
+        return () => subs.delete(s);
+      },
+    };
+    return q;
+  }
+  const db = { doc: docRef, collection: (p) => colRef(p) };
+  const user = { id: async () => sess.user.id, me: async () => ({ id: sess.user.id, name: sess.user.name }), isOwner: async () => true, canEdit: async () => true, can: async () => true };
+  const downloads = {
+    async save({ filename, data }) {
+      const blob = data instanceof Blob ? data : new Blob([data]);
+      const file = new File([blob], filename, { type: /\.pdf$/i.test(filename) ? "application/pdf" : blob.type || "application/octet-stream" });
+      if (/iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent) && "ontouchend" in document && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: filename }); return { status: "saved" }; }
+        catch (e) { if (e && e.name === "AbortError") throw { code: "declined", message: "cancelado" }; }
+      }
+      const url = URL.createObjectURL(file); const a = document.createElement("a");
+      a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      return { status: "saved" };
+    },
+  };
+  let resolveReady; const ready = new Promise((r) => (resolveReady = r));
+  window.claude = { use: async (name) => { await ready; return { db, user, downloads }[name] || null; } };
+  window.CV_SERVER = {
+    email: "", name: "",
+    cloud: true,
+    async logout() {
+      if (pendingCount() && !confirm("Ainda há alterações não enviadas para a nuvem. Sair mesmo assim? Elas continuam guardadas neste aparelho.")) return;
+      try { await fetch(API + "/auth/v1/logout", { method: "POST", headers: { apikey: KEY, Authorization: "Bearer " + sess.access_token } }); } catch (e) {}
+      sess = null; saveSess(); location.reload();
+    },
+    async changePassword(d) {
+      if (!d || !d.new || String(d.new).length < 8) throw new Error("A nova senha precisa ter pelo menos 8 caracteres.");
+      try { await authCall("token?grant_type=password", { email: sess.user.email, password: d.current || "" }); }
+      catch (e) { throw new Error(e.code === "offline" ? "Sem internet." : "Senha atual incorreta."); }
+      if (sess.expires_at - 60 < Date.now() / 1000) await refresh();
+      try { await authCall("user", { password: d.new }, sess.access_token); } catch (e) { throw new Error(e.message); }
+    },
+  };
+
+  /* ---------- abertura ---------- */
+  async function start() {
+    idb = await openIdb(sess.user.id);
+    (await idbAll("docs")).forEach((e) => map.set(e.path, e));
+    meta = (await idbGet("meta", "meta")) || { cursor: null, migrated: false };
+    window.CV_SERVER.email = sess.user.email; window.CV_SERVER.name = sess.user.name;
+    if (navigator.onLine) {
+      const first = !meta.cursor;
+      const work = (async () => { try { await pull(); state.online = true; } catch (e) { if (e && e.code === "offline") state.online = false; } })();
+      if (first) await work; else await Promise.race([work, new Promise((r) => setTimeout(r, 4000))]);
+    } else state.online = false;
+    await migrate(sess.user.id);
+    await claimSlot(sess.user.id);
+    resolveReady();
+    schedule(1500);
+  }
+  function loginScreen() {
+    let mode = "login";
+    const render = (err, keep = {}) => {
+      document.getElementById("root").innerHTML = `
+        <div class="auth">${window.CV_BRAND ? `<div class="welcome-logo"><img src="${window.CV_BRAND.green}" alt="GFB AGRO"></div>` : `<div class="logo">CampoVendas</div>`}
+          <p class="muted">${mode === "register" ? "Crie sua conta (uma vez só). Depois entre com ela no Mac, iPhone e iPad." : "Entre para ver e sincronizar seus dados em todos os aparelhos."}</p>
+          <form class="card form" id="authform" autocomplete="on">
+            ${mode === "register" ? `<label class="field"><span>Seu nome</span><input name="name" required autocomplete="name" value="${esc(keep.name || "")}"></label>` : ""}
+            <label class="field"><span>E-mail</span><input name="email" type="email" required autocomplete="username" inputmode="email" value="${esc(keep.email || "")}"></label>
+            <label class="field"><span>Senha</span><input name="password" id="a-pass" type="password" required minlength="8" autocomplete="${mode === "register" ? "new-password" : "current-password"}">
+              ${mode === "register" ? `<span class="hint">Mínimo de 8 caracteres</span>` : ""}</label>
+            <div class="err" id="autherr">${esc(err || "")}</div>
+            <button class="btn primary" type="submit">${mode === "register" ? "Criar conta e entrar" : "Entrar"}</button>
+            <button type="button" class="btn ghost" id="swap">${mode === "login" ? "Primeiro acesso? Criar conta" : "Já tenho conta: entrar"}</button>
+          </form>
+          <p class="tiny muted">Você continua conectado neste aparelho. Seus dados ficam guardados no aparelho e na sua conta na nuvem.</p></div>`;
+      const f = document.getElementById("authform");
+      document.getElementById("swap").onclick = () => { mode = mode === "login" ? "register" : "login"; render(null, Object.fromEntries(new FormData(f).entries())); };
+      f.onsubmit = async (ev) => {
+        ev.preventDefault();
+        const b = f.querySelector("button[type=submit]"); b.disabled = true; b.textContent = "Entrando…";
+        const d = Object.fromEntries(new FormData(f).entries());
+        const email = String(d.email || "").trim().toLowerCase();
+        try {
+          let r;
+          if (mode === "register") {
+            r = await authCall("signup", { email, password: d.password, data: { name: String(d.name || "").trim() } });
+            if (!r.access_token) {
+              try { r = await authCall("token?grant_type=password", { email, password: d.password }); }
+              catch (e) { throw { message: "Conta criada. Abra o e-mail de confirmação que o Supabase enviou e depois toque em Entrar." }; }
+            }
+          } else r = await authCall("token?grant_type=password", { email, password: d.password });
+          setSess(r);
+          document.getElementById("root").innerHTML = '<div class="loading"><span class="spinner"></span> Carregando seus dados…</div>';
+          await start();
+        } catch (er) { render(er.message || "Não foi possível entrar", d); const pw = document.getElementById("a-pass"); if (pw) pw.focus(); }
+      };
+    };
+    render();
+  }
+  function boot() { if (sess && sess.user) start(); else loginScreen(); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
+})();
+</script>
 </head><body>
 <div id="root"><div class="loading"><span class="spinner"></span> Carregando seus dados…</div></div>
 <div class="toast-wrap" id="toasts"></div>
@@ -876,8 +1312,13 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
   B.get = (table, id) => S.t[table].get(Number(id)) || null;
   B.find = (table, fn) => { for (const r of S.t[table].values()) if (fn(r)) return r; return null; };
   B.filter = (table, fn) => { const out = []; for (const r of S.t[table].values()) if (fn(r)) out.push(r); return out; };
+  /* Com a sincronização na nuvem, cada aparelho recebe um "slot" (0–9) e só cria números internos
+     terminados nele: dois aparelhos sem internet nunca criam o mesmo registro com o mesmo número. */
   B.insert = (table, row) => {
-    const id = ++S.maxId[table];
+    const slot = window.CV_ID_SLOT;
+    let id;
+    if (slot == null || table === "settings") id = ++S.maxId[table];
+    else { id = S.maxId[table] + 1; while (id % 10 !== slot) id++; S.maxId[table] = id; }
     const r = { ...row, id };
     S.t[table].set(id, r); mark(table, id);
     if (S.journal) S.journal.push(() => { S.t[table].delete(id); mark(table, id); });
@@ -3603,6 +4044,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
   };
   App.updateSync = function () {
     const el = document.getElementById("sync"); if (!el) return;
+    if (window.CV_CLOUD) { const l = window.CV_CLOUD.label(); el.className = "sync " + l.cls; el.querySelector(".txt").textContent = l.txt; return; }
     const st = window.Backend.syncState ? window.Backend.syncState() : "saved";
     el.className = "sync " + st;
     const savedTxt = window.CV_LOCAL ? "Salvo neste aparelho" : "Salvo";
@@ -3918,7 +4360,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
   const { html, route, field } = App;
   route("/boas-vindas", async (view) => {
     view.innerHTML = html`${window.CV_BRAND ? html`<div class="welcome-logo"><img src="${window.CV_BRAND.green}" alt="GFB AGRO"></div>` : ""}<h1>Bem-vindo ao CampoVendas</h1>
-      <div class="card"><p>Seu sistema de vendas e acompanhamento de campo. Tudo o que você cadastrar fica salvo ${window.CV_SERVER ? "no seu servidor, protegido pela sua senha" : window.CV_LOCAL ? "neste navegador, neste aparelho (funciona sem internet). Faça backup semanal em Mais → Exportar e backup" : "na sua conta Claude, de forma privada (só você vê)"}.</p>
+      <div class="card"><p>Seu sistema de vendas e acompanhamento de campo. Tudo o que você cadastrar fica salvo ${window.CV_SERVER && window.CV_SERVER.cloud ? "neste aparelho e na sua conta na nuvem, sincronizando sozinho entre Mac, iPhone e iPad" : window.CV_SERVER ? "no seu servidor, protegido pela sua senha" : window.CV_LOCAL ? "neste navegador, neste aparelho (funciona sem internet). Faça backup semanal em Mais → Exportar e backup" : "na sua conta Claude, de forma privada (só você vê)"}.</p>
         <form class="form" id="wf">${field("seller_name", "Seu nome (aparece nos PDFs)", { value: App.state.settings.seller_name || (window.CV_SERVER && window.CV_SERVER.name) || "" })}
           ${field("seller_phone", "Seu telefone", { type: "tel", value: App.state.settings.seller_phone })}
           ${field("company_label", "Texto do cabeçalho dos PDFs", { value: App.state.settings.company_label, placeholder: "Ex.: Consultor Técnico de Vendas — Morrinhos/GO" })}</form></div>
