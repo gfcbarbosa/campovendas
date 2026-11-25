@@ -2,7 +2,7 @@
 
 App de cotações (padrão Calculadora GFB AGRO), vendas, entregas e metas.
 
-Novidades: **Barter** em cada cotação (sacas de soja/milho com Funrural e Senar) e **Receitas agronômicas** (Mais → Receitas agronômicas), com plano por operação, conferência com a cotação e PDF da receita. **Análise de solo** (Início ou Mais; software Fertilidade do Solo Cerrado). **Calculadora de preço** (Início ou Mais): preço à vista e a prazo pela regra GFB, sem criar cotação. **Calculadora financeira** (Início ou Mais): juros compostos para levar um valor ao futuro ou trazer para hoje.
+Novidades: **Barter** em cada cotação (sacas de soja/milho com Funrural e Senar) e **Receitas agronômicas** (Mais → Receitas agronômicas), com plano por operação, conferência com a cotação e PDF da receita. **Análise de solo** (Início ou Mais; software Fertilidade do Solo Cerrado). **Comissão por nota fiscal** (Painel ou Mais): regras por segmento editáveis. **Calculadora de preço** (Início ou Mais): preço à vista e a prazo pela regra GFB, sem criar cotação. **Calculadora financeira** (Início ou Mais): juros compostos para levar um valor ao futuro ou trazer para hoje.
 
 **Abrir o app:** https://gfcbarbosa.github.io/campovendas/
 

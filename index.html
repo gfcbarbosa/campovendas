@@ -486,8 +486,15 @@ html.d-compact h1{font-size:1.38rem}
 .pc-out b{font-size:1.05rem}
 .pc-hi{background:var(--gold-soft,#fbf0d6);border-radius:10px;padding:6px 8px;margin:-6px 0}
 .pc-hi b{color:var(--gold,#9a6512)}
-.grid.g3{display:grid;grid-template-columns:repeat(3,1fr)}
+.grid.g3f{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
 .home-tools .btn{justify-content:center;padding-left:6px;padding-right:6px}
+
+/* comissão */
+.cm-sale summary{list-style:none;cursor:pointer}
+.cm-sale summary::-webkit-details-marker{display:none}
+.cm-items{margin-top:10px;border-top:1px dashed var(--line)}
+.cm-it{display:flex;gap:10px;align-items:center;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:8px 2px;cursor:pointer;font:inherit;color:inherit}
+.cm-it .r,.cm-sale .r{text-align:right;white-space:nowrap}
 
 .content{padding-top:max(14px,env(safe-area-inset-top))}
 </style><link rel="manifest" href="manifest.webmanifest"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="CampoVendas"><link rel="apple-touch-icon" href="icon-180.png"><script>if("serviceWorker" in navigator && /^https?:$/.test(location.protocol)){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").then(function(r){r.addEventListener("updatefound",function(){var w=r.installing;w&&w.addEventListener("statechange",function(){if(w.state==="installed"&&navigator.serviceWorker.controller){window.CV_UPDATE=true;try{App.toast("Nova versão disponível: feche e abra o app para atualizar")}catch(e){}}})})}).catch(function(){})})}</script><script>window.CV_CLOUD_CONFIG={"url": "https://luoxidbcggzpopuxzbrs.supabase.co", "key": "sb_publishable_oaVj2I7U5fLK96_wjBkQmw_IKNPPCk8"};</script><script>/* Sincronização na nuvem (Supabase) para o app instalado.
@@ -1855,6 +1862,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
       package_size: B.decS(d, "package_size", "Conteúdo da embalagem", true, true), package_label: B.s(d, "package_label", 60),
       seeds_per_package: B.decS(d, "seeds_per_package", "Sementes por embalagem", true, true),
       ref_price_cents: B.money(d, "ref_price_cents", "Preço de referência"), cost_cents: B.money(d, "cost_cents", "Custo"),
+      max_discount_pct: B.decS(d, "max_discount_pct", "Desconto máximo permitido", true, false),
       active_ingredient: B.s(d, "active_ingredient", 500), notes: B.s(d, "notes", 2000), active: [false, 0, "0"].includes(d.active) ? 0 : 1 };
   }
   route("GET", "/api/meta", () => {
@@ -3627,6 +3635,150 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
     });
     return zip(files);
   };
+})();
+
+/* ---- b6_commission.js ---- */
+/* Comissão por segmento de produto, reduzida pelo desconto.
+   Regra: sem desconto = comissão cheia do segmento; no desconto máximo permitido = comissão mínima (0,1%);
+   entre os dois, a comissão cai na mesma proporção do desconto. Segmentos "fixos" (fertilizantes) não mudam com o desconto.
+   Conta no mês da nota fiscal (faturamento informado), sobre o valor da nota, dividido entre os produtos da venda. */
+(function () {
+  "use strict";
+  const B = window.Backend;
+  const { ApiError, route } = B;
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+
+  const DEFAULT_CFG = {
+    segments: [
+      { id: "fert", name: "Fertilizantes", full: "0.1", min: "0.1", max: "", fixed: true },
+      { id: "def", name: "Defensivos", full: "1.5", min: "0.1", max: "7.8", fixed: false },
+      { id: "sem", name: "Sementes", full: "1.5", min: "0.1", max: "7.8", fixed: false },
+      { id: "fol", name: "Foliares e biológicos", full: "3", min: "0.1", max: "7.8", fixed: false },
+    ],
+    cats: { Fertilizantes: "fert", Herbicidas: "def", Inseticidas: "def", Fungicidas: "def", Defensivos: "def", Sementes: "sem", Biológicos: "fol", "Nutrição foliar": "fol", Foliares: "fol" },
+  };
+  B.DEFAULT_SETTINGS.commission_cfg = "";
+  B.commissionCfg = () => {
+    try { const v = JSON.parse(B.settings().commission_cfg || "null"); if (v && Array.isArray(v.segments) && v.segments.length) return { cats: {}, ...v }; } catch (e) { /* usa o padrão */ }
+    return clone(DEFAULT_CFG);
+  };
+  const n = (v) => { const x = B.gnum(v); return x === null || !isFinite(x) ? null : x; };
+
+  /* percentual de comissão de um item */
+  B.commissionPct = (seg, disc, max) => {
+    if (!seg) return null;
+    const full = n(seg.full) ?? 0, min = Math.min(n(seg.min) ?? 0.1, full);
+    if (seg.fixed) return full;
+    if (disc === null) return null;
+    const d = Math.max(disc, 0);
+    const frac = max && max > 0 ? Math.min(d / max, 1) : d > 0 ? 1 : 0;
+    return Math.max(min, Math.round((full - (full - min) * frac) * 10000) / 10000);
+  };
+
+  function maps() {
+    const prods = B.all("products");
+    return { byId: new Map(prods.map((p) => [p.id, p])), byName: new Map(prods.map((p) => [String(p.name || "").trim().toLowerCase(), p])) };
+  }
+  function itemInfo(si, cfg, M) {
+    const p = (si.product_id && M.byId.get(si.product_id)) || M.byName.get(String(si.product_name || "").trim().toLowerCase()) || null;
+    const key = String(si.product_name || "").trim().toLowerCase();
+    const remembered = (cfg.names || {})[key] || null;
+    const segId = si.commission_segment || (p && cfg.cats[p.category]) || (remembered && remembered.seg) || (si.category && cfg.cats[si.category]) || null;
+    const seg = cfg.segments.find((s) => s.id === segId) || null;
+    let disc = null, discFrom = null;
+    if (si.commission_discount !== undefined && si.commission_discount !== null && si.commission_discount !== "") { disc = n(si.commission_discount); discFrom = "informado"; }
+    else if (si.table_discount !== undefined && si.table_discount !== null && si.table_discount !== "") { disc = n(si.table_discount); discFrom = "cotação"; }
+    else if (si.discount_input && si.discount_type === "pct" && Number(si.discount_input)) { disc = n(si.discount_input); discFrom = "cotação"; }
+    else if (si.table_price && si.pay_cond) { disc = 0; discFrom = "cotação"; }   // cotação GFB sem desconto
+    let max = null, maxFrom = null;
+    if (si.commission_max !== undefined && si.commission_max !== null && si.commission_max !== "") { max = n(si.commission_max); maxFrom = "informado"; }
+    else if (p && p.max_discount_pct !== undefined && p.max_discount_pct !== null && p.max_discount_pct !== "") { max = n(p.max_discount_pct); maxFrom = "produto"; }
+    else if (remembered && remembered.max) { max = n(remembered.max); maxFrom = "produto"; }
+    else if (seg && seg.max !== "" && seg.max != null) { max = n(seg.max); maxFrom = "segmento"; }
+    const pct = B.commissionPct(seg, disc, max);
+    const missing = !seg ? "segmento" : pct === null ? "desconto" : null;
+    return { seg, segId, disc, discFrom, max, maxFrom, pct, missing, product: p };
+  }
+
+  B.saleCommission = (s, cfg = B.commissionCfg(), M = maps()) => {
+    const items = B.filter("sale_items", (it) => it.sale_id === s.id);
+    const nets = items.map((it) => B.itemBalances(it).net_total_cents);
+    const itemsTotal = nets.reduce((a, v) => a + v, 0);
+    const billed = s.billed_date ? (s.billed_cents != null ? s.billed_cents : B.saleNet(s)) : null;
+    const base = billed !== null ? billed : B.saleNet(s);
+    let total = 0, missing = 0;
+    const rows = items.map((it, i) => {
+      const info = itemInfo(it, cfg, M);
+      const share = itemsTotal ? (base * nets[i]) / itemsTotal : 0;
+      const cents = info.pct === null ? null : Math.round((share * info.pct) / 100);
+      if (cents === null) missing++; else total += cents;
+      return { id: it.id, product_name: it.product_name, quantity: it.quantity, unit: it.unit, net_cents: nets[i], base_cents: Math.round(share),
+        segment_id: info.segId, segment: info.seg ? info.seg.name : null, fixed: !!(info.seg && info.seg.fixed),
+        discount: info.disc, discount_from: info.discFrom, max: info.max, max_from: info.maxFrom, pct: info.pct, commission_cents: cents, missing: info.missing };
+    });
+    return { base_cents: base, billed: billed !== null, commission_cents: total, missing, eff_pct: base ? (total / base) * 100 : 0, items: rows };
+  };
+
+  B.commissionReport = (start, end) => {
+    const cfg = B.commissionCfg(), M = maps();
+    const inR = (d) => d && d >= start && d <= end;
+    const client = (id) => { const c = B.get("clients", id); return c ? c.name : "—"; };
+    const head = (s) => ({ id: s.id, number: s.number, client_name: client(s.client_id), closed_date: s.closed_date, billed_date: s.billed_date, invoice_ref: s.invoice_ref });
+    const billed = B.filter("sales", (s) => s.status === "ativa" && inR(s.billed_date)).map((s) => ({ ...head(s), ...B.saleCommission(s, cfg, M) }))
+      .sort((a, b) => (b.billed_date || "").localeCompare(a.billed_date || "") || b.id - a.id);
+    const pending = B.filter("sales", (s) => s.status === "ativa" && !s.billed_date).map((s) => ({ ...head(s), ...B.saleCommission(s, cfg, M) }))
+      .sort((a, b) => (b.closed_date || "").localeCompare(a.closed_date || "") || b.id - a.id);
+    const sum = (arr, k) => arr.reduce((a, x) => a + (x[k] || 0), 0);
+    const tot = sum(billed, "commission_cents"), base = sum(billed, "base_cents");
+    return {
+      cfg, start, end,
+      total_cents: tot, base_cents: base, eff_pct: base ? (tot / base) * 100 : 0, missing: sum(billed, "missing"), billed,
+      pending, pending_cents: sum(pending, "commission_cents"), pending_base_cents: sum(pending, "base_cents"), pending_missing: sum(pending, "missing"),
+    };
+  };
+
+  route("GET", "/api/commission", (req) => {
+    const t = B.today ? B.today() : new Date().toISOString().slice(0, 10);
+    const start = req.query.from || t.slice(0, 8) + "01", end = req.query.to || t;
+    return B.commissionReport(start, end);
+  });
+  route("GET", "/api/commission/config", () => ({ ...B.commissionCfg(), categories: [...new Set([...B.CATEGORIES, ...B.all("products").map((p) => p.category).filter(Boolean)])] }));
+  route("PUT", "/api/commission/config", (req) => {
+    const d = req.body || {};
+    if (!Array.isArray(d.segments) || !d.segments.length) throw new ApiError(400, "Informe pelo menos um segmento");
+    const segs = d.segments.map((s, i) => {
+      const name = String(s.name || "").trim(); if (!name) throw new ApiError(400, `Segmento ${i + 1}: informe o nome`);
+      const full = n(s.full), min = n(s.min), max = s.max === "" || s.max == null ? null : n(s.max);
+      if (full === null || full < 0 || full > 100) throw new ApiError(400, `${name}: comissão cheia inválida`);
+      if (min === null || min < 0 || min > full) throw new ApiError(400, `${name}: a comissão mínima deve ficar entre 0 e a comissão cheia`);
+      if (!s.fixed && (max === null || max <= 0 || max > 100)) throw new ApiError(400, `${name}: informe o desconto máximo (maior que zero)`);
+      return { id: String(s.id || "s" + Date.now().toString(36) + i).slice(0, 20), name: name.slice(0, 60), full: String(full), min: String(min), max: max === null ? "" : String(max), fixed: !!s.fixed };
+    });
+    const ids = new Set(segs.map((s) => s.id));
+    const cats = {}; Object.entries(d.cats || {}).forEach(([c, sid]) => { if (sid && ids.has(sid)) cats[String(c).slice(0, 80)] = sid; });
+    const prev = B.commissionCfg(); const names = {};
+    Object.entries(prev.names || {}).forEach(([k, v]) => { if (v && (!v.seg || ids.has(v.seg))) names[k] = v; else if (v && v.max) names[k] = { seg: null, max: v.max }; });
+    B.setSettings({ commission_cfg: JSON.stringify({ segments: segs, cats, names }) });
+    B.audit("settings", null, "regras de comissão alteradas", { segmentos: segs.length });
+    return { ok: true };
+  });
+  route("PUT", "/api/sale-items/{id}/commission", (req) => {
+    const it = B.owned("sale_items", B.param(req, "id"), "Item da venda"); const d = req.body || {};
+    const cfg = B.commissionCfg();
+    const seg = d.segment ? String(d.segment) : null;
+    if (seg && !cfg.segments.some((s) => s.id === seg)) throw new ApiError(400, "Segmento inválido");
+    const chk = (v, label) => { if (v === "" || v == null) return null; const x = n(v); if (x === null || x < 0 || x > 100) throw new ApiError(400, `${label}: valor inválido`); return String(x); };
+    const max = chk(d.max, "Desconto máximo");
+    B.update("sale_items", it.id, { commission_segment: seg, commission_discount: chk(d.discount, "Desconto"), commission_max: max });
+    // lembra o segmento (e o desconto máximo) deste produto para as outras vendas com o mesmo nome
+    const key = String(it.product_name || "").trim().toLowerCase();
+    if (key && (seg || max) && d.remember !== false && d.remember !== "0") {
+      const c2 = B.commissionCfg(); c2.names = c2.names || {};
+      c2.names[key] = { seg: seg || (c2.names[key] && c2.names[key].seg) || null, max: max || (c2.names[key] && c2.names[key].max) || null };
+      B.setSettings({ commission_cfg: JSON.stringify(c2) });
+    }
+    return { ok: true };
+  });
 })();
 
 /* ---- core.js ---- */
@@ -5567,6 +5719,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
           ${field("package_size", "Conteúdo da embalagem", { value: App.decInput(p.package_size), inputmode: "decimal", hint: "na unidade de venda (ex.: 20 L)" })}
           ${field("package_label", "Tipo de embalagem", { value: p.package_label, placeholder: "galão, saco, big bag" })}</div>
         <div class="f2">${App.money("ref_price", "Preço de referência (R$ por unidade)", p.ref_price_cents)}${App.money("cost", "Custo de aquisição (R$, opcional)", p.cost_cents, { hint: "Interno — nunca aparece para o cliente" })}</div>
+        ${field("max_discount_pct", "Desconto máximo permitido (%)", { value: App.decInput(p.max_discount_pct), inputmode: "decimal", hint: "Usado na comissão: com esse desconto você recebe a comissão mínima. Em branco = padrão do segmento." })}
         ${field("active_ingredient", "Ingrediente ativo / composição", { value: p.active_ingredient })}
         ${field("seeds_per_package", "Sementes por embalagem (sementes)", { value: App.decInput(p.seeds_per_package), inputmode: "decimal" })}
         ${field("notes", "Observações", { type: "textarea", value: p.notes })}
@@ -5712,8 +5865,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
       </div>
       ${pl.overdue.length ? html`<h2>${App.icon("alert","")}Negociações atrasadas</h2><div class="list">${pl.overdue.map((x) => html`<a class="item" href="#/cotacoes/${x.id}"><div class="grow"><div class="title">${x.client_name}</div>
         <div class="meta">${x.number} v${x.version} · ${x.reasons.join(" · ")}</div></div><b class="nowrap">${brl(x.total_cents)}</b></a>`)}</div>` : ""}
-      ${d.commission ? html`<h2>Comissão estimada</h2><div class="card"><div class="value bold">${brl(d.commission.total_cents)}</div>${App.bars(d.commission.by_category)}<p class="tiny muted">${d.commission.note}</p></div>`
-        : html`<p class="tiny muted">Comissão não exibida: nenhuma regra cadastrada (<a href="#/comissao">cadastrar regras</a>).</p>`}
+      <p class="small"><a href="#/comissao">Ver comissão por nota fiscal →</a></p>
       <details class="card"><summary>Como cada indicador é calculado</summary><div class="small" style="white-space:pre-wrap">${d.definitions}</div></details>`.s;
     App.on(view, "[data-p]", "click", (e, b) => App.go("#/painel?" + new URLSearchParams({ p: b.dataset.p, basis })));
     view.querySelector("#basis").onchange = (e) => set({ basis: e.target.value });
@@ -5735,9 +5887,9 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
       <div class="card tight"><div class="row between"><div><b>Tamanho da tela</b><div class="tiny muted">Vale só para este aparelho. "Compacto" mostra mais informação sem rolar.</div></div>${App.densityControl()}</div></div><div class="list menu-list">${L("#/agenda", "calendar", "Agenda", "visitas e tarefas")}</div>
       <div class="list menu-list">${L("#/vendas", "sale", "Vendas", "entregas, devoluções, recebimentos")}${L("#/produtos", "box", "Produtos")}${L("#/receitas", "sprout", "Receitas agronômicas", "plano por operação e PDF da receita")}${L("#/painel", "chart", "Painel de vendas")}
         ${L("#/calculadoras", "calc", "Calculadoras", "dose × área, sementes, sacas de soja")}</div>
-      <div class="list menu-list">${L("#/metas", "target", "Metas")}${L("#/comissao", "coins", "Regras de comissão", "só calculada se você cadastrar")}
+      <div class="list menu-list">${L("#/metas", "target", "Metas")}
         ${L("#/planejamentos", "sprout", "Planejamentos de visitas", "dias após o plantio")}</div>
-      <div class="list menu-list">${L("#/preco", "tag", "Calculadora de preço")}${L("#/calculadora", "calc", "Calculadora financeira")}${L("#/solo", "sprout", "Análise de solo")}${L("#/importar", "upload", "Importar clientes e produtos")}${L("#/exportar", "download", "Exportar e backup")}
+      <div class="list menu-list">${L("#/comissao", "coins", "Comissão por nota fiscal")}${L("#/preco", "tag", "Calculadora de preço")}${L("#/calculadora", "calc", "Calculadora financeira")}${L("#/solo", "sprout", "Análise de solo")}${L("#/importar", "upload", "Importar clientes e produtos")}${L("#/exportar", "download", "Exportar e backup")}
         ${L("#/auditoria", "history", "Histórico de alterações")}${L("#/lixeira", "trash", "Lixeira", "clientes excluídos")}</div>
       <div class="list menu-list">${L("#/config", "settings", "Configurações e identidade visual")}</div>
       <div class="card"><h3>Dados de demonstração</h3>
@@ -5853,7 +6005,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
   }, { tab: "mais" });
 
   /* ---------- comissão ---------- */
-  route("/comissao", async (view) => {
+  route("/comissao-antiga", async (view) => {
     const d = await App.get("/api/commission-rules");
     view.innerHTML = html`${App.backLink("#/mais", "Mais")}<div class="row between"><h1>Regras de comissão</h1><button class="btn primary" id="new">${App.icon("plus","sm")} Regra</button></div>
       <div class="warnbox">O sistema não presume percentuais nem regras da empresa. A comissão só aparece no Painel se você cadastrar regras aqui. Regra por categoria tem prioridade sobre a regra geral.</div>
@@ -6022,7 +6174,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
           : html`<div class="foot"><span>Toque para definir sua meta do mês</span></div>`}
       </a>
       <a class="big-new" href="#/cotacoes/nova"><span class="plus">${I("plus")}</span>Nova cotação</a>
-      <div class="grid g3 home-tools" style="margin:-2px 0 12px;gap:8px"><a class="btn" href="#/preco">${I("tag")} Preço</a>
+      <div class="grid g3f home-tools" style="margin:-2px 0 12px;gap:8px"><a class="btn" href="#/preco">${I("tag")} Preço</a>
         <a class="btn" href="#/calculadora">${I("calc")} Juros</a>
         <a class="btn" href="#/solo">${I("sprout")} Solo</a></div>
       <div class="grid g2" style="margin-bottom:6px">
@@ -6129,6 +6281,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
     const d = await App.get(`/api/dashboard?from=${P[k][1]}&to=${P[k][2]}&basis=fechamento`);
     const g = d.goals.find((x) => x.start_date <= P[k][1] && x.end_date >= P[k][2]) || d.goals[0];
     const c = d.conversion;
+    const cm = await App.get(`/api/commission?from=${P[k][1]}&to=${P[k][2]}`).catch(() => null);
     view.innerHTML = html`
       <h1>Painel</h1>
       <div class="seg" style="margin-bottom:10px">${Object.entries(P).map(([kk, [l]]) => html`<button data-p="${kk}" class="${k === kk ? "on" : ""}">${l}</button>`)}</div>
@@ -6140,6 +6293,8 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
         <a class="kpi" href="#/cotacoes"><div class="label">Em negociação agora</div><div class="value">${brl(d.pipeline.open_cents)}</div><div class="sub">${d.pipeline.open_count} cotação(ões)</div></a>
         <div class="kpi"><div class="label">Cotações fechadas</div><div class="value">${App.pct(c.count_rate_pct)}</div><div class="sub">${c.won_count} ganha(s) · ${c.lost_count} perdida(s)</div></div>
       </div>
+      ${cm ? html`<a class="kpi" href="#/comissao?p=${k}" style="margin-top:10px;display:block"><div class="label">Comissão · notas ${P[k][0].toLowerCase()}</div>
+        <div class="value">${brl(cm.total_cents)}</div><div class="sub">${cm.billed.length} nota(s)${cm.base_cents ? ` · ${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(cm.eff_pct)}% média` : ""} · a faturar: ${brl(cm.pending_cents)} previsto${cm.missing || cm.pending_missing ? " · tem item para completar" : ""}</div></a>` : ""}
       <div class="card" style="margin-top:12px"><h3>Últimos 6 meses</h3>${App.columnChart(d.trend)}</div>
       <div class="card"><h3>Clientes que mais compraram</h3>${App.bars(d.by_client.slice(0, 5).map((x) => ({ ...x, label: nm(x.label) })))}</div>
       <div class="card"><h3>Produtos mais vendidos</h3>${d.top_products.length ? html`<table class="t">${d.top_products.slice(0, 5).map((x) => html`<tr><td>${nm(x.label)}<div class="tiny muted">${App.num(x.qty)} ${x.unit}</div></td><td class="num">${brl(x.cents)}</td></tr>`)}</table>` : html`<div class="empty small">Sem vendas no período</div>`}</div>`.s;
@@ -6158,7 +6313,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
     const L = (h, i, t, s) => html`<a class="item" href="${h}">${I(i)}<div class="grow"><div class="title">${t}</div>${s ? html`<div class="meta">${s}</div>` : ""}</div><span class="chev">${I("right", "sm")}</span></a>`;
     const demo = await App.get("/api/demo/status").catch(() => ({ demo_clients: 0 }));
     view.innerHTML = html`<h1>Mais</h1>
-      <div class="list menu-list">${L("#/preco", "tag", "Calculadora de preço", "preço à vista e a prazo, com desconto, sem criar cotação")}${L("#/calculadora", "calc", "Calculadora financeira", "juros compostos: levar ao futuro ou trazer para hoje")}${L("#/solo", "sprout", "Análise de solo", "laudo, interpretação e recomendação (Fertilidade do Solo Cerrado)")}${L("#/clientes", "users", "Clientes", "telefone, cidade, histórico")}${L("#/produtos", "box", "Produtos e preços", "seu catálogo para as cotações")}${L("#/receitas", "sprout", "Receitas agronômicas", "plano por operação e PDF da receita")}
+      <div class="list menu-list">${L("#/comissao", "coins", "Comissão", "por nota fiscal · regras por segmento")}${L("#/preco", "tag", "Calculadora de preço", "preço à vista e a prazo, com desconto, sem criar cotação")}${L("#/calculadora", "calc", "Calculadora financeira", "juros compostos: levar ao futuro ou trazer para hoje")}${L("#/solo", "sprout", "Análise de solo", "laudo, interpretação e recomendação (Fertilidade do Solo Cerrado)")}${L("#/clientes", "users", "Clientes", "telefone, cidade, histórico")}${L("#/produtos", "box", "Produtos e preços", "seu catálogo para as cotações")}${L("#/receitas", "sprout", "Receitas agronômicas", "plano por operação e PDF da receita")}
         ${L("#/metas", "target", "Metas")}${L("#/config", "settings", "Padrão de preço, seu nome e PDF")}${L("#/exportar", "download", "Backup e Excel")}${L("#/importar", "upload", "Importar clientes e produtos")}</div>
       <div class="card tight"><div class="row between"><div><b>Tamanho da tela</b><div class="tiny muted">Só neste aparelho</div></div>${App.densityControl()}</div></div>
       <div class="card tight"><div class="row between"><div><b>Modo completo</b><div class="tiny muted">Mostra agenda de visitas, talhões, dose × área, margens e mais filtros.</div></div>
@@ -7360,6 +7515,133 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
     }
     draw();
   }, { tab: "mais" });
+})();
+
+/* ---- comissao.js ---- */
+/* Telas de comissão: relatório por nota fiscal (mês da nota, sobre o valor da nota), previsão das vendas ainda sem nota,
+   ajuste por item (segmento, desconto, desconto máximo) e edição das regras por segmento. */
+(function () {
+  "use strict";
+  const { html, route, brl } = App;
+  const I = App.icon;
+  const nf = (v, d = 2) => new Intl.NumberFormat("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d }).format(v);
+  const pctTxt = (v) => (v == null ? "—" : nf(v, 2) + "%");
+  const fieldH = (name, label, value, extra = "") => html`<label class="field"><span>${label}</span><input name="${name}" value="${value == null ? "" : value}" ${App.raw(extra)}></label>`;
+
+  function periods() {
+    const t = App.todayISO(), y = +t.slice(0, 4), m = +t.slice(5, 7), ms = t.slice(0, 8) + "01";
+    return { mes: ["Este mês", ms, App.addDays(new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10), -1)],
+      anterior: ["Mês passado", new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 10), App.addDays(ms, -1)], ano: [`Ano ${y}`, `${y}-01-01`, `${y}-12-31`] };
+  }
+  App.commissionPeriods = periods;
+
+  function itemRow(it) {
+    const segChip = it.segment ? html`<span class="chip ${it.fixed ? "gray" : "green"}">${it.segment}</span>` : html`<span class="chip red">sem segmento</span>`;
+    const disc = it.fixed ? "fixa" : it.discount == null ? html`<span style="color:var(--bad)">informe o desconto</span>` : `desc. ${nf(it.discount, 2)}%${it.max ? ` de ${nf(it.max, 1)}% máx.` : ""}`;
+    return html`<button type="button" class="cm-it" data-item="${it.id}">
+      <div class="grow"><div class="bold">${it.product_name}</div><div class="tiny muted">${segChip} ${disc}</div></div>
+      <div class="r"><b class="num">${it.commission_cents == null ? "—" : brl(it.commission_cents)}</b><div class="tiny muted">${pctTxt(it.pct)} de ${brl(it.base_cents)}</div></div></button>`;
+  }
+  function saleCard(s, kind) {
+    return html`<details class="card cm-sale"><summary>
+        <div class="row between" style="gap:8px"><div class="grow"><div class="bold">${s.client_name}</div>
+          <div class="tiny muted">${s.number}${kind === "nf" ? ` · NF ${s.invoice_ref || "s/nº"} · ${App.date(s.billed_date)}` : ` · fechada ${App.date(s.closed_date)}`}</div></div>
+          <div class="r"><b class="num">${brl(s.commission_cents)}</b><div class="tiny muted">${kind === "nf" ? "nota" : "venda"} ${brl(s.base_cents)}${s.base_cents ? ` · ${nf(s.eff_pct, 2)}%` : ""}</div>
+          ${s.missing ? html`<div class="tiny" style="color:var(--bad)">${s.missing} item(ns) incompleto(s)</div>` : ""}</div></div></summary>
+      <div class="cm-items">${s.items.map(itemRow)}</div>
+      <div class="row" style="gap:8px;margin-top:8px"><a class="btn sm" href="#/vendas/${s.id}">Abrir venda</a>
+        <button type="button" class="btn sm ${kind === "nf" ? "" : "primary"}" data-nf="${s.id}">${kind === "nf" ? "Editar nota" : "Registrar nota fiscal"}</button></div></details>`;
+  }
+
+  async function editItem(itemId, rep) {
+    const all = [...rep.billed, ...rep.pending]; let it = null;
+    all.forEach((s) => s.items.forEach((x) => { if (x.id === itemId) it = x; }));
+    if (!it) return;
+    const segs = rep.cfg.segments;
+    App.modal({
+      title: it.product_name,
+      body: html`<form class="form">
+        <label class="field"><span>Segmento</span><select name="segment"><option value="">— automático pela categoria do produto —</option>
+          ${segs.map((s) => html`<option value="${s.id}" ${it.segment_id === s.id ? "selected" : ""}>${s.name} (${nf(Number(s.full), 2)}%${s.fixed ? " fixa" : ""})</option>`)}</select></label>
+        ${fieldH("discount", "Desconto dado (%)", it.discount_from === "informado" && it.discount != null ? App.decInput(it.discount) : "", `inputmode="decimal" placeholder="${it.discount != null ? App.decInput(it.discount) + " (da cotação)" : "ex.: 3,5"}"`)}
+        ${fieldH("max", "Desconto máximo permitido (%)", it.max_from === "informado" && it.max != null ? App.decInput(it.max) : "", `inputmode="decimal" placeholder="${it.max != null ? App.decInput(it.max) + " (" + it.max_from + ")" : "ex.: 7,8"}"`)}
+        <label class="row" style="gap:8px;align-items:center"><input type="checkbox" name="remember" value="1" checked style="width:auto"> <span class="small">Usar este segmento e desconto máximo em todas as vendas de “${it.product_name}”</span></label>
+        <p class="hint">Deixe o desconto em branco para usar o da cotação. O desconto dado vale só para esta venda.</p></form>`.s,
+      actions: [{ label: "Salvar", cls: "primary", onClick: async (close, m) => { const v = App.readForm(m); v.remember = !!m.querySelector("[name=remember]").checked; await App.put(`/api/sale-items/${itemId}/commission`, v); close(1); App.toast("Comissão atualizada", "ok"); App.render(); } }],
+    });
+  }
+  async function openNota(saleId) {
+    const s = await App.get(`/api/sales/${saleId}`);
+    App.saleActions.billing(s);
+  }
+
+  route("/comissao", async (view, p, q) => {
+    const P = periods(); const k = P[q.p] ? q.p : "mes";
+    const rep = await App.get(`/api/commission?from=${P[k][1]}&to=${P[k][2]}`);
+    view.innerHTML = html`
+      <div class="row between" style="align-items:center"><h1 style="margin:0">Comissão</h1><a class="btn sm" href="#/comissao/regras">${I("settings", "sm")} Regras</a></div>
+      <div class="seg" style="margin:10px 0">${Object.entries(P).map(([kk, [l]]) => html`<button data-p="${kk}" class="${k === kk ? "on" : ""}">${l}</button>`)}</div>
+      <div class="hero"><div class="lbl">Comissão das notas · ${P[k][0].toLowerCase()}</div><div class="big" data-count="${rep.total_cents}">${brl(rep.total_cents)}</div>
+        <div class="foot"><span>${rep.billed.length} nota(s) · ${brl(rep.base_cents)} faturado</span><b>${rep.base_cents ? nf(rep.eff_pct, 2) + "% em média" : ""}</b></div></div>
+      ${rep.missing ? html`<div class="infobox small" style="margin:8px 0">${rep.missing} produto(s) sem segmento ou sem desconto não entraram na conta. Abra a nota e toque no produto para completar.</div>` : ""}
+      ${rep.billed.length ? rep.billed.map((s) => saleCard(s, "nf")) : html`<div class="empty small muted" style="padding:14px">Nenhuma nota fiscal registrada neste período. A comissão conta pela data da nota: registre a nota na venda (ou na lista abaixo).</div>`}
+      <h2 style="margin-top:18px">A faturar · previsão</h2>
+      <p class="small muted" style="margin-top:-6px">Vendas ainda sem nota. Estimativa sobre o valor da venda; entra no mês em que a nota for registrada.</p>
+      <div class="kpi" style="margin-bottom:8px"><div class="label">Comissão prevista</div><div class="value">${brl(rep.pending_cents)}</div><div class="sub">${rep.pending.length} venda(s) · ${brl(rep.pending_base_cents)}${rep.pending_missing ? ` · ${rep.pending_missing} item(ns) incompleto(s)` : ""}</div></div>
+      ${rep.pending.map((s) => saleCard(s, "prev"))}`.s;
+    App.on(view, "[data-p]", "click", (e, b) => App.go("#/comissao?p=" + b.dataset.p, { replace: true }));
+    App.on(view, "[data-item]", "click", (e, b) => editItem(Number(b.dataset.item), rep));
+    App.on(view, "[data-nf]", "click", (e, b) => openNota(Number(b.dataset.nf)));
+    App.countUp && App.countUp(view);
+  }, { tab: "painel" });
+
+  route("/comissao/regras", async (view) => {
+    const cfg = await App.get("/api/commission/config");
+    let segs = cfg.segments.map((s) => ({ ...s }));
+    const cats = cfg.categories;
+    const draw = () => {
+      view.innerHTML = html`${App.backLink("#/comissao", "Comissão")}<h1>Regras de comissão</h1>
+        <p class="small muted">Sem desconto você recebe a comissão cheia. No desconto máximo, a mínima. No meio, a comissão cai na mesma proporção do desconto. Segmento "fixo" não muda com o desconto.</p>
+        <form id="cf">
+          ${segs.map((s, i) => html`<div class="card form" data-seg="${i}">
+            <div class="row between" style="gap:8px"><input name="name" value="${s.name}" aria-label="Nome do segmento" style="flex:1;font-weight:700">
+              ${segs.length > 1 ? html`<button type="button" class="btn ghost sm" data-rm="${i}" aria-label="Remover segmento">${I("xmark")}</button>` : ""}</div>
+            <div class="grid g3f" style="gap:8px">
+              ${fieldH("full", "Cheia (%)", App.decInput(s.full), 'inputmode="decimal"')}
+              ${fieldH("min", "Mínima (%)", App.decInput(s.min), 'inputmode="decimal"')}
+              ${fieldH("max", "Desc. máximo (%)", App.decInput(s.max), `inputmode="decimal" ${s.fixed ? "disabled" : ""}`)}</div>
+            <label class="row" style="gap:8px;align-items:center"><input type="checkbox" name="fixed" ${s.fixed ? "checked" : ""} style="width:auto"> <span class="small">Fixa (não muda com o desconto)</span></label>
+            <div class="tiny muted">${s.fixed ? `Sempre ${nf(Number(String(s.full).replace(",", ".")) || 0, 2)}%.` : `Ex.: metade do desconto máximo paga ${nf(((Number(String(s.full).replace(",", ".")) || 0) + (Number(String(s.min).replace(",", ".")) || 0)) / 2, 2)}%.`}</div>
+          </div>`)}
+          <button type="button" class="btn" id="add" style="width:100%;justify-content:center">${I("addp")} Novo segmento</button>
+          <h2 style="margin-top:16px">Categoria do produto → segmento</h2>
+          <p class="small muted" style="margin-top:-6px">A comissão de cada produto vem da categoria dele no cadastro. Também dá para escolher o segmento direto no produto da venda.</p>
+          <div class="card form">${cats.map((c) => html`<label class="field"><span>${c}</span><select data-cat="${c}"><option value="">— sem segmento —</option>
+            ${segs.map((s) => html`<option value="${s.id}" ${cfg.cats[c] === s.id ? "selected" : ""}>${s.name}</option>`)}</select></label>`)}</div>
+          <div class="btn-bar" style="position:sticky;bottom:calc(84px + var(--sab, 0px));z-index:5"><button class="btn primary" type="submit" style="flex:1">Salvar regras</button></div>
+        </form>`.s;
+      const f = view.querySelector("#cf");
+      const read = () => {
+        f.querySelectorAll("[data-seg]").forEach((el) => {
+          const s = segs[Number(el.dataset.seg)];
+          s.name = el.querySelector("[name=name]").value; s.full = el.querySelector("[name=full]").value; s.min = el.querySelector("[name=min]").value;
+          s.max = el.querySelector("[name=max]").value; s.fixed = el.querySelector("[name=fixed]").checked;
+        });
+        f.querySelectorAll("[data-cat]").forEach((el) => { cfg.cats[el.dataset.cat] = el.value; });
+      };
+      f.addEventListener("change", (e) => { if (e.target.name === "fixed") { read(); draw(); } });
+      App.on(view, "[data-rm]", "click", (e, b) => { read(); const id = segs[Number(b.dataset.rm)].id; segs.splice(Number(b.dataset.rm), 1); Object.keys(cfg.cats).forEach((c) => { if (cfg.cats[c] === id) cfg.cats[c] = ""; }); draw(); });
+      view.querySelector("#add").onclick = () => { read(); segs.push({ id: "s" + Date.now().toString(36), name: "Novo segmento", full: "1", min: "0.1", max: "7.8", fixed: false }); draw(); };
+      f.onsubmit = async (e) => {
+        e.preventDefault(); read();
+        try {
+          await App.busy(f.querySelector("button[type=submit]"), () => App.put("/api/commission/config", { segments: segs, cats: cfg.cats }));
+          App.toast("Regras de comissão salvas", "ok"); App.go("#/comissao");
+        } catch (err) { App.error(err); }
+      };
+    };
+    draw();
+  }, { tab: "painel" });
 })();
 
 /* ---- solo.js ---- */
