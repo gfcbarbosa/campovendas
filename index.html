@@ -476,6 +476,19 @@ html.d-compact h1{font-size:1.38rem}
 :root[data-theme="dark"] .welcome-logo img{filter:brightness(0) invert(1)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .welcome-logo img{filter:brightness(0) invert(1)}}
 
+/* calculadora de preço */
+.pc-item{padding:12px}
+.pc-item input.pc-name{font-weight:700}
+.pc-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin-top:8px}
+@media (min-width:640px){.pc-grid{grid-template-columns:repeat(4,1fr)}}
+.pc-own{margin-top:6px}
+.pc-out{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+.pc-out b{font-size:1.05rem}
+.pc-hi{background:var(--gold-soft,#fbf0d6);border-radius:10px;padding:6px 8px;margin:-6px 0}
+.pc-hi b{color:var(--gold,#9a6512)}
+.grid.g3{display:grid;grid-template-columns:repeat(3,1fr)}
+.home-tools .btn{justify-content:center;padding-left:6px;padding-right:6px}
+
 .content{padding-top:max(14px,env(safe-area-inset-top))}
 </style><link rel="manifest" href="manifest.webmanifest"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="CampoVendas"><link rel="apple-touch-icon" href="icon-180.png"><script>if("serviceWorker" in navigator && /^https?:$/.test(location.protocol)){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").then(function(r){r.addEventListener("updatefound",function(){var w=r.installing;w&&w.addEventListener("statechange",function(){if(w.state==="installed"&&navigator.serviceWorker.controller){window.CV_UPDATE=true;try{App.toast("Nova versão disponível: feche e abra o app para atualizar")}catch(e){}}})})}).catch(function(){})})}</script><script>window.CV_CLOUD_CONFIG={"url": "https://luoxidbcggzpopuxzbrs.supabase.co", "key": "sb_publishable_oaVj2I7U5fLK96_wjBkQmw_IKNPPCk8"};</script><script>/* Sincronização na nuvem (Supabase) para o app instalado.
    Cada aparelho guarda tudo localmente (funciona sem internet no campo) e, quando há conexão,
@@ -3919,6 +3932,10 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
 
   /* ---------- ícones (traço, 24px) ---------- */
   const ICONS = {
+    copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+    xmark: '<path d="M6 6l12 12M18 6L6 18"/>',
+    addp: '<path d="M12 5v14M5 12h14"/>',
+    tag: '<path d="M3 12V4h8l9 9-8 8z"/><circle cx="7.5" cy="7.5" r="1.3"/>',
     calc: '<rect x="5" y="2.5" width="14" height="19" rx="2"/><path d="M8 6.5h8v3H8z"/><path d="M8.5 13h.01M12 13h.01M15.5 13h.01M8.5 16.5h.01M12 16.5h.01M15.5 16.5h.01"/>',
     home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
     users: '<circle cx="9" cy="8" r="4"/><path d="M2 21c0-3.9 3.1-7 7-7s7 3.1 7 7"/><path d="M16 4a4 4 0 0 1 0 8"/><path d="M22 21c0-3-1.8-5.5-4.5-6.5"/>',
@@ -5720,7 +5737,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
         ${L("#/calculadoras", "calc", "Calculadoras", "dose × área, sementes, sacas de soja")}</div>
       <div class="list menu-list">${L("#/metas", "target", "Metas")}${L("#/comissao", "coins", "Regras de comissão", "só calculada se você cadastrar")}
         ${L("#/planejamentos", "sprout", "Planejamentos de visitas", "dias após o plantio")}</div>
-      <div class="list menu-list">${L("#/calculadora", "calc", "Calculadora financeira")}${L("#/solo", "sprout", "Análise de solo")}${L("#/importar", "upload", "Importar clientes e produtos")}${L("#/exportar", "download", "Exportar e backup")}
+      <div class="list menu-list">${L("#/preco", "tag", "Calculadora de preço")}${L("#/calculadora", "calc", "Calculadora financeira")}${L("#/solo", "sprout", "Análise de solo")}${L("#/importar", "upload", "Importar clientes e produtos")}${L("#/exportar", "download", "Exportar e backup")}
         ${L("#/auditoria", "history", "Histórico de alterações")}${L("#/lixeira", "trash", "Lixeira", "clientes excluídos")}</div>
       <div class="list menu-list">${L("#/config", "settings", "Configurações e identidade visual")}</div>
       <div class="card"><h3>Dados de demonstração</h3>
@@ -6005,8 +6022,9 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
           : html`<div class="foot"><span>Toque para definir sua meta do mês</span></div>`}
       </a>
       <a class="big-new" href="#/cotacoes/nova"><span class="plus">${I("plus")}</span>Nova cotação</a>
-      <div class="grid g2" style="margin:-2px 0 12px;gap:8px"><a class="btn" href="#/calculadora" style="justify-content:center">${I("calc")} Calculadora</a>
-        <a class="btn" href="#/solo" style="justify-content:center">${I("sprout")} Análise de solo</a></div>
+      <div class="grid g3 home-tools" style="margin:-2px 0 12px;gap:8px"><a class="btn" href="#/preco">${I("tag")} Preço</a>
+        <a class="btn" href="#/calculadora">${I("calc")} Juros</a>
+        <a class="btn" href="#/solo">${I("sprout")} Solo</a></div>
       <div class="grid g2" style="margin-bottom:6px">
         <a class="kpi" href="#/cotacoes"><div class="stat-ic">${I("file")}</div><div class="label">Em negociação</div><div class="value" data-count="${s.open_quotes_cents}">${brl(s.open_quotes_cents)}</div><div class="sub">${s.open_quotes} cotação(ões)</div></a>
         <a class="kpi" href="#/vendas"><div class="stat-ic o">${I("truck")}</div><div class="label">A entregar</div><div class="value">${toDeliver.length}</div><div class="sub">venda(s) com saldo</div></a>
@@ -6140,7 +6158,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
     const L = (h, i, t, s) => html`<a class="item" href="${h}">${I(i)}<div class="grow"><div class="title">${t}</div>${s ? html`<div class="meta">${s}</div>` : ""}</div><span class="chev">${I("right", "sm")}</span></a>`;
     const demo = await App.get("/api/demo/status").catch(() => ({ demo_clients: 0 }));
     view.innerHTML = html`<h1>Mais</h1>
-      <div class="list menu-list">${L("#/calculadora", "calc", "Calculadora financeira", "juros compostos: levar ao futuro ou trazer para hoje")}${L("#/solo", "sprout", "Análise de solo", "laudo, interpretação e recomendação (Fertilidade do Solo Cerrado)")}${L("#/clientes", "users", "Clientes", "telefone, cidade, histórico")}${L("#/produtos", "box", "Produtos e preços", "seu catálogo para as cotações")}${L("#/receitas", "sprout", "Receitas agronômicas", "plano por operação e PDF da receita")}
+      <div class="list menu-list">${L("#/preco", "tag", "Calculadora de preço", "preço à vista e a prazo, com desconto, sem criar cotação")}${L("#/calculadora", "calc", "Calculadora financeira", "juros compostos: levar ao futuro ou trazer para hoje")}${L("#/solo", "sprout", "Análise de solo", "laudo, interpretação e recomendação (Fertilidade do Solo Cerrado)")}${L("#/clientes", "users", "Clientes", "telefone, cidade, histórico")}${L("#/produtos", "box", "Produtos e preços", "seu catálogo para as cotações")}${L("#/receitas", "sprout", "Receitas agronômicas", "plano por operação e PDF da receita")}
         ${L("#/metas", "target", "Metas")}${L("#/config", "settings", "Padrão de preço, seu nome e PDF")}${L("#/exportar", "download", "Backup e Excel")}${L("#/importar", "upload", "Importar clientes e produtos")}</div>
       <div class="card tight"><div class="row between"><div><b>Tamanho da tela</b><div class="tiny muted">Só neste aparelho</div></div>${App.densityControl()}</div></div>
       <div class="card tight"><div class="row between"><div><b>Modo completo</b><div class="tiny muted">Mostra agenda de visitas, talhões, dose × área, margens e mais filtros.</div></div>
@@ -6247,6 +6265,10 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
         disc: it.cash_price ? "" : !legacyValor && Number(it.discount_input) ? App.decInput(it.discount_input) : "", cash: it.cash_price ? App.centsInput(it.cash_unit_cents) : "", pay_date: it.pay_date || "",
         manufacturer: it.manufacturer, category: it.category, package_size: it.package_size, package_label: it.package_label, cost: it.cost_unit_cents };
     });
+    if (!quote && App.state.quoteDraft) {          // vindo da Calculadora de preço
+      const d = App.state.quoteDraft; App.state.quoteDraft = null;
+      Object.assign(H, d.H); if (d.items && d.items.length) items = d.items;
+    }
     if (!items.length) items.push({});
     view.innerHTML = html`
       ${App.backLink(id ? `#/cotacoes/${id}` : "#/cotacoes", "Voltar")}
@@ -7143,6 +7165,199 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
       modo = b.dataset.m; view.querySelectorAll("#modo button").forEach((x) => x.classList.toggle("on", x === b)); draw();
     });
     f.addEventListener("input", draw);
+    draw();
+  }, { tab: "mais" });
+})();
+
+/* ---- precocalc.js ---- */
+/* Calculadora de preço: mesma regra da cotação (Calculadora de Preço GFB AGRO), sem precisar criar cotação.
+   Data do preço + data de pagamento + juros ao mês + limite à vista → preço à vista e preço a prazo por produto,
+   com desconto, data de pagamento própria por produto e total. Os cálculos usam o mesmo motor das cotações (B.gfbCalc). */
+(function () {
+  "use strict";
+  const { html, route, brl } = App;
+  const I = App.icon;
+  const B = window.Backend;
+  const LS = "cv_precocalc";
+  const nf = (v, d) => new Intl.NumberFormat("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d }).format(v);
+  const fmtQ = (q) => (q == null ? "" : nf(q, Number.isInteger(q) ? 0 : 2));
+  const dBR = (iso) => (iso ? App.date(iso) : "–");
+
+  function fresh() {
+    const st = App.state.settings || {}, today = App.todayISO();
+    return { H: { issue_date: today, pay_date: today, rate_pct: App.decInput(st.gfb_rate || "1.49"), cash_limit_days: App.decInput(st.gfb_cash_limit || "10"), bag_crop: "soja", bag_price: "" },
+      items: [{ name: "", quantity: "", unit: "", price: "", disc: "", pay_date: "" }] };
+  }
+  function load() { try { const s = JSON.parse(App.ls(LS) || "null"); if (s && s.H && Array.isArray(s.items) && s.items.length) return s; } catch (e) {} return fresh(); }
+  const save = (s) => App.ls(LS, JSON.stringify(s));
+
+  function compute(s) {
+    const h = { issue_date: s.H.issue_date, pay_date: s.H.pay_date, rate_pct: s.H.rate_pct, cash_limit_days: s.H.cash_limit_days,
+      bag_crop: s.H.bag_crop, bag_price_cents: B.gnum(s.H.bag_price) ? Math.round(B.gnum(s.H.bag_price) * 100) : null, penhor_pct: (App.state.settings || {}).gfb_penhor };
+    // o motor só considera data própria de item com nome: itens sem nome recebem um nome interno
+    const items = s.items.map((it, i) => ({ product_name: (it.name || "").trim() || `Produto ${i + 1}`, quantity: it.quantity, unit: it.unit,
+      table_price: it.price, discount_input: it.disc, pay_date: it.pay_date || null }));
+    return B.gfbCalc(h, items);
+  }
+
+  function texto(s, c) {
+    const st = App.state.settings || {};
+    const linhas = [];
+    linhas.push(`*${st.gfb_company || "GFB AGRO"} — preço*`);
+    linhas.push(`Data: ${dBR(s.H.issue_date)} · válido até ${dBR(c.validade)}`);
+    if (!c.variasDatas) linhas.push(`Pagamento: ${c.condPadrao === B.GFB.AV && c.items.every((i) => i.U === B.GFB.AV) ? "à vista" : dBR(c.items[0] ? c.items[0].S : s.H.pay_date)}`);
+    linhas.push("");
+    c.items.forEach((it, i) => {
+      if (it.G == null) return;
+      const nome = (s.items[i].name || "").trim() || `Produto ${i + 1}`;
+      const un = s.items[i].unit ? "/" + s.items[i].unit : "";
+      let l = `• ${nome}: ${brl(it.G)}${un}`;
+      if (c.variasDatas) l += ` (${it.U === B.GFB.AV ? "à vista" : "pagto " + dBR(it.S)})`;
+      if (it.qt != null && it.net_cents != null) l += ` × ${fmtQ(it.qt)} = ${brl(it.net_cents)}`;
+      linhas.push(l);
+    });
+    if (c.total_cents) { linhas.push(""); linhas.push(`*Total: ${brl(c.total_cents)}*`); }
+    if (st.seller_name) { linhas.push(""); linhas.push(st.seller_name); }
+    return linhas.join("\n");
+  }
+
+  route("/preco", async (view) => {
+    let s = load();
+    let products = [];
+    try { products = (await App.get("/api/products")).items || []; } catch (e) { products = []; }
+    const byName = Object.fromEntries(products.map((p) => [p.name.toLowerCase(), p]));
+
+    const itemCard = (it, i) => html`
+      <div class="card pc-item" data-i="${i}">
+        <div class="row between" style="gap:8px;align-items:center">
+          <input class="pc-name" list="pc-prods" placeholder="Produto (opcional)" value="${it.name}" aria-label="Produto" style="flex:1">
+          ${s.items.length > 1 ? html`<button type="button" class="btn ghost sm pc-rm" aria-label="Remover produto">${I("xmark")}</button>` : ""}
+        </div>
+        <div class="pc-grid">
+          <label class="field"><span>Qtd</span><input class="pc-q" inputmode="decimal" placeholder="opcional" value="${it.quantity}"></label>
+          <label class="field"><span>Unid.</span><input class="pc-u" list="pc-units" placeholder="L, kg…" value="${it.unit}"></label>
+          <label class="field"><span>Preço de tabela</span><input class="pc-p" inputmode="decimal" placeholder="0,00" value="${it.price}"></label>
+          <label class="field"><span>Desconto %</span><input class="pc-d" inputmode="decimal" placeholder="0" value="${it.disc}"></label>
+        </div>
+        <details class="pc-own" ${it.pay_date ? "open" : ""}><summary class="tiny muted">Data de pagamento só deste produto</summary>
+          <label class="field" style="margin-top:6px"><span>Pagamento deste produto</span><input class="pc-dt" type="date" value="${it.pay_date}"></label></details>
+        <div class="pc-res" id="pc-res-${i}"></div>
+      </div>`;
+
+    const draw = () => {
+      view.innerHTML = html`
+        <div class="page-head"><h1>Calculadora de preço</h1></div>
+        <p class="small muted" style="margin:-4px 0 10px">Mesma regra da cotação: até o limite de dias é preço à vista; acima disso, à vista × (1 + juros)<sup>dias ÷ 30</sup>. Nada é salvo como cotação.</p>
+        <datalist id="pc-prods">${products.map((p) => html`<option value="${p.name}">${p.unit || ""} · ${p.ref_price_cents != null ? brl(p.ref_price_cents) : "sem preço"}</option>`)}</datalist>
+        <datalist id="pc-units">${(B.GFB_UNITS || ["L", "kg", "t", "sc", "un"]).map((u) => html`<option value="${u}"></option>`)}</datalist>
+        <div class="card form" id="pc-h">
+          <div class="grid g2">
+            <label class="field"><span>Data do preço</span><input name="issue_date" type="date" value="${s.H.issue_date}"></label>
+            <label class="field"><span>Data de pagamento</span><input name="pay_date" type="date" value="${s.H.pay_date}"></label>
+            <label class="field"><span>Juros ao mês (%)</span><input name="rate_pct" inputmode="decimal" value="${s.H.rate_pct}"></label>
+            <label class="field"><span>À vista até (dias)</span><input name="cash_limit_days" inputmode="decimal" value="${s.H.cash_limit_days}"></label>
+            <label class="field"><span>Saca para conversão</span><select name="bag_crop"><option value="soja" ${s.H.bag_crop !== "milho" ? "selected" : ""}>Soja</option><option value="milho" ${s.H.bag_crop === "milho" ? "selected" : ""}>Milho</option></select></label>
+            <label class="field"><span>Preço da saca (opcional)</span><input name="bag_price" inputmode="decimal" placeholder="0,00" value="${s.H.bag_price}"></label>
+          </div>
+          <div class="pc-cond" id="pc-cond"></div>
+        </div>
+        <div id="pc-items">${s.items.map(itemCard)}</div>
+        <button type="button" class="btn" id="pc-add" style="width:100%;justify-content:center;margin-bottom:12px">${I("addp")} Adicionar produto</button>
+        <div id="pc-tot"></div>
+        <div class="grid g2" style="gap:8px;margin-top:10px">
+          <button type="button" class="btn" id="pc-copy">${I("copy")} Copiar</button>
+          <button type="button" class="btn" id="pc-wa">WhatsApp</button>
+          <button type="button" class="btn primary" id="pc-quote">${I("file")} Virar cotação</button>
+          <button type="button" class="btn ghost" id="pc-clear">Limpar</button>
+        </div>`.s;
+      bind(); update();
+    };
+
+    function update() {
+      save(s);
+      const c = compute(s);
+      const AV = B.GFB.AV;
+      const cond = view.querySelector("#pc-cond");
+      const prazoTxt = `${c.prazo} ${c.prazo === 1 ? "dia" : "dias"} (${nf(c.prazoMeses, 2)} ${c.prazoMeses === 1 ? "mês" : "meses"})`;
+      cond.innerHTML = html`<div class="row" style="gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px">
+          <span class="chip ${c.condicao === AV ? "green" : c.condicao === B.GFB.AP ? "gold" : "blue"}">${c.condicao}</span>
+          <span class="small">Prazo ${prazoTxt}</span>
+          ${c.condPadrao === AV ? "" : html`<span class="small muted">· fator ${nf(c.fator, 4)} · juros no período ${nf(c.jurosPeriodo * 100, 2)}%</span>`}
+          <span class="small muted">· válido até ${dBR(c.validade)}</span></div>`.s;
+      c.items.forEach((it, i) => {
+        const el = view.querySelector(`#pc-res-${i}`); if (!el) return;
+        if (it.erro) { el.innerHTML = html`<div class="small" style="color:var(--danger,#b42318)">${it.erro}</div>`.s; return; }
+        if (it.R == null) { el.innerHTML = html`<div class="tiny muted">Informe o preço de tabela.</div>`.s; return; }
+        const un = s.items[i].unit ? "/" + s.items[i].unit : "";
+        const prazo = it.U !== AV;
+        el.innerHTML = html`<div class="pc-out">
+            <div><div class="tiny muted">Preço à vista</div><b class="num">${brl(it.R)}${un}</b></div>
+            <div class="${prazo ? "pc-hi" : ""}"><div class="tiny muted">${prazo ? `A prazo · ${dBR(it.S)} (${it.T} dias)` : "Preço final (à vista)"}</div><b class="num">${brl(it.G)}${un}</b></div>
+            ${it.net_cents != null ? html`<div><div class="tiny muted">Total</div><b class="num">${brl(it.net_cents)}</b>${it.sacas != null ? html`<div class="tiny muted">${nf(Number(it.sacas), 2)} sc de ${c.bag_crop}</div>` : ""}</div>` : ""}
+          </div>`.s;
+      });
+      const tot = view.querySelector("#pc-tot");
+      if (!c.total_cents) { tot.innerHTML = ""; return; }
+      tot.innerHTML = html`
+        <div class="hero"><div class="lbl">${c.condicao === AV ? "Total à vista" : c.condicao === B.GFB.MISTO ? "Total do pedido" : "Total a prazo"}</div>
+          <div class="big">${brl(c.total_cents)}</div>
+          <div class="foot"><span>${c.nItens} ${c.nItens === 1 ? "produto" : "produtos"} com quantidade</span>${c.sacas != null ? html`<span>${nf(Number(c.sacas), 2)} sc de ${c.bag_crop}</span>` : ""}</div></div>
+        <div class="card">
+          <div class="row between"><span class="muted">Tabela</span><b class="num">${brl(c.tabela_cents)}</b></div>
+          <div class="row between"><span class="muted">Desconto (${nf(c.pctDesconto * 100, 1)}%)</span><b class="num">${brl(c.desconto_cents)}</b></div>
+          <div class="row between"><span class="muted">Total à vista</span><b class="num">${brl(c.avista_cents)}</b></div>
+          <div class="row between"><span class="muted">Juros (${nf(c.pctJuros * 100, 2)}%)</span><b class="num">${brl(c.juros_cents)}</b></div>
+          <div class="row between"><span class="muted">Total final</span><b class="num">${brl(c.total_cents)}</b></div>
+        </div>`.s;
+    }
+
+    function bind() {
+      const hdr = view.querySelector("#pc-h");
+      hdr.addEventListener("input", (e) => { const n = e.target.name; if (n) { s.H[n] = e.target.value; update(); } });
+      hdr.addEventListener("change", (e) => { const n = e.target.name; if (n) { s.H[n] = e.target.value; update(); } });
+      const box = view.querySelector("#pc-items");
+      const onItem = (e) => {
+        const card = e.target.closest(".pc-item"); if (!card) return;
+        const it = s.items[Number(card.dataset.i)];
+        const cls = e.target.className.split(" ").find((k) => k.startsWith("pc-"));
+        const key = { "pc-name": "name", "pc-q": "quantity", "pc-u": "unit", "pc-p": "price", "pc-d": "disc", "pc-dt": "pay_date" }[cls];
+        if (!key) return;
+        it[key] = e.target.value;
+        if (key === "name" && e.type === "change") {
+          const p = byName[it.name.trim().toLowerCase()];
+          if (p) {
+            if (!it.unit && p.unit) { it.unit = p.unit; card.querySelector(".pc-u").value = p.unit; }
+            if (!it.price && p.ref_price_cents != null) { it.price = App.centsInput(p.ref_price_cents); card.querySelector(".pc-p").value = it.price; }
+          }
+        }
+        update();
+      };
+      box.addEventListener("input", onItem); box.addEventListener("change", onItem);
+      box.addEventListener("click", (e) => {
+        const rm = e.target.closest(".pc-rm"); if (!rm) return;
+        s.items.splice(Number(rm.closest(".pc-item").dataset.i), 1); draw();
+      });
+      view.querySelector("#pc-add").onclick = () => {
+        s.items.push({ name: "", quantity: "", unit: "", price: "", disc: "", pay_date: "" }); draw();
+        const last = view.querySelector(`.pc-item[data-i="${s.items.length - 1}"] .pc-name`); if (last) last.focus();
+      };
+      view.querySelector("#pc-clear").onclick = () => { s = fresh(); draw(); };
+      view.querySelector("#pc-copy").onclick = async () => {
+        const t = texto(s, compute(s));
+        try { await navigator.clipboard.writeText(t); App.toast("Preço copiado", "ok"); } catch (e) { App.waShare("", t, "Copie o texto"); }
+      };
+      view.querySelector("#pc-wa").onclick = () => App.waShare("", texto(s, compute(s)), "Preço calculado");
+      view.querySelector("#pc-quote").onclick = () => {
+        App.state.quoteDraft = {
+          H: { issue_date: s.H.issue_date, pay_date: s.H.pay_date, rate_pct: s.H.rate_pct, cash_limit_days: s.H.cash_limit_days, bag_crop: s.H.bag_crop, bag_price: s.H.bag_price },
+          items: s.items.filter((it) => (it.name || "").trim() || it.price).map((it, i) => {
+            const p = byName[(it.name || "").trim().toLowerCase()];
+            return { product_id: p ? p.id : null, name: (it.name || "").trim() || `Produto ${i + 1}`, unit: it.unit, quantity: it.quantity, price: it.price, disc: it.disc, cash: "", pay_date: it.pay_date };
+          }),
+        };
+        App.go("#/cotacoes/nova");
+      };
+    }
     draw();
   }, { tab: "mais" });
 })();
