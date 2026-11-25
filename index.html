@@ -6552,7 +6552,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
         <span><i class="sw ap"></i>Acima de ${fmtN(c.limite, 0)} dias = A PRAZO: à vista × (1 + juros)^(dias ÷ 30)</span>`.s;
       view.querySelector("#tiles").innerHTML = html`
         <div class="tile"><span class="k">Tabela · ${c.nItens} itens</span><span class="v">${brl(c.tabela_cents)}</span><span class="s">qtde × preço de tabela</span></div>
-        <div class="tile"><span class="k">Desconto · ${fmtN(c.pctDesconto * 100, 1)}%</span><span class="v">${brl(c.desconto_cents)}</span><span class="s">à vista: ${brl(c.avista_cents)}</span></div>
+        <div class="tile"><span class="k">Desconto · ${fmtN(c.pctDesconto * 100, 1)}%</span><span class="v">${brl(c.desconto_cents)}</span><span class="s">${c.aVista ? `à vista: ${brl(c.avista_cents)}` : "sobre o preço de tabela"}</span></div>
         <div class="tile ${c.aVista ? "t-av" : "t-ap"}"><span class="k">Juros · ${fmtN(c.pctJuros * 100, 2)}%</span><span class="v">${brl(c.juros_cents)}</span>
           <span class="s">${fmtN(c.taxaPct, 2)}% a.m.${c.itensDataPropria ? ` · ${c.itensDataPropria} item(ns) com data própria` : ` · ${c.prazo} dias`}</span></div>
         <div class="tile hero"><span class="k">${rot.tot}</span><span class="v">${brl(c.total_cents)}</span><span class="s">penhor ${fmtN(c.penhor_pct, 0)}%: ${brl(c.penhor_cents)}</span></div>
@@ -7437,7 +7437,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
       cond.innerHTML = html`<div class="row" style="gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px">
           <span class="chip ${c.condicao === AV ? "green" : c.condicao === B.GFB.AP ? "gold" : "blue"}">${c.condicao}</span>
           <span class="small">Prazo ${prazoTxt}</span>
-          ${c.condPadrao === AV ? "" : html`<span class="small muted">· fator ${nf(c.fator, 4)} · juros no período ${nf(c.jurosPeriodo * 100, 2)}%</span>`}
+          ${c.condPadrao === AV ? "" : html`<span class="small muted">· ${nf(c.taxaPct != null ? c.taxaPct : Number(String(s.H.rate_pct).replace(",", ".")), 2)}% a.m.</span>`}
           <span class="small muted">· válido até ${dBR(c.validade)}</span></div>`.s;
       c.items.forEach((it, i) => {
         const el = view.querySelector(`#pc-res-${i}`); if (!el) return;
@@ -7445,9 +7445,9 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
         if (it.R == null) { el.innerHTML = html`<div class="tiny muted">Informe o preço de tabela.</div>`.s; return; }
         const un = s.items[i].unit ? "/" + s.items[i].unit : "";
         const prazo = it.U !== AV;
+        // fora da regra do à vista, mostra só o preço a prazo; dentro dela, só o preço à vista
         el.innerHTML = html`<div class="pc-out">
-            <div><div class="tiny muted">Preço à vista</div><b class="num">${brl(it.R)}${un}</b></div>
-            <div class="${prazo ? "pc-hi" : ""}"><div class="tiny muted">${prazo ? `A prazo · ${dBR(it.S)} (${it.T} dias)` : "Preço final (à vista)"}</div><b class="num">${brl(it.G)}${un}</b></div>
+            <div class="${prazo ? "pc-hi" : ""}"><div class="tiny muted">${prazo ? `Preço a prazo · ${dBR(it.S)} (${it.T} dias)` : "Preço à vista"}</div><b class="num">${brl(it.G)}${un}</b></div>
             ${it.net_cents != null ? html`<div><div class="tiny muted">Total</div><b class="num">${brl(it.net_cents)}</b>${it.sacas != null ? html`<div class="tiny muted">${nf(Number(it.sacas), 2)} sc de ${c.bag_crop}</div>` : ""}</div>` : ""}
           </div>`.s;
       });
@@ -7460,9 +7460,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
         <div class="card">
           <div class="row between"><span class="muted">Tabela</span><b class="num">${brl(c.tabela_cents)}</b></div>
           <div class="row between"><span class="muted">Desconto (${nf(c.pctDesconto * 100, 1)}%)</span><b class="num">${brl(c.desconto_cents)}</b></div>
-          <div class="row between"><span class="muted">Total à vista</span><b class="num">${brl(c.avista_cents)}</b></div>
-          <div class="row between"><span class="muted">Juros (${nf(c.pctJuros * 100, 2)}%)</span><b class="num">${brl(c.juros_cents)}</b></div>
-          <div class="row between"><span class="muted">Total final</span><b class="num">${brl(c.total_cents)}</b></div>
+          <div class="row between"><span class="muted">${c.condicao === AV ? "Total à vista" : c.condicao === B.GFB.MISTO ? "Total do pedido" : "Total a prazo"}</span><b class="num">${brl(c.total_cents)}</b></div>
         </div>`.s;
     }
 
