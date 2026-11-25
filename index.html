@@ -1597,7 +1597,15 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
       let pt = gnum(it.table_price);
       if (pt === null && it.unit_price_cents !== null && it.unit_price_cents !== undefined && it.unit_price_cents !== "") pt = Number(it.unit_price_cents) / 100;
       // preço do pedido (à vista) digitado: o desconto sai dele; sem preço de tabela, o próprio preço do pedido vale como tabela (desconto 0)
-      const cp = gnum(it.cash_price);
+      let cp = gnum(it.cash_price);
+      // preço do pedido digitado como preço FINAL (o que o cliente paga): a prazo, volta para o preço à vista
+      // que, pela regra, gera exatamente esse preço final
+      const fp = gnum(it.final_price);
+      if (fp !== null && cp === null) {
+        const f = U === AV ? 1 : Math.pow(1 + taxa, T / 30);
+        const r0 = ground(fp / f, 2); cp = r0;
+        for (const d of [0, -0.01, 0.01, -0.02, 0.02]) { const r = ground(r0 + d, 2); if (r >= 0 && ground(U === AV ? r : r * f, 2) === ground(fp, 2)) { cp = r; break; } }
+      }
       if (cp !== null && pt === null) pt = cp;
       let dcPct = cp !== null ? (pt ? (1 - cp / pt) * 100 : 0) : gnum(it.discount_input) ?? 0;
       if (cp !== null && Math.abs(dcPct) < 1e-9) dcPct = 0;
@@ -6417,7 +6425,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
       const legacyValor = it.discount_type === "valor" && it.discount_cents;
       return { product_id: it.product_id, name: it.product_name, unit: it.unit || "", quantity: App.decInput(it.quantity),
         price: it.table_price != null ? App.decInput(it.table_price) : legacyValor ? App.centsInput(Math.round(it.net_total_cents / Number(it.quantity))) : App.centsInput(it.unit_price_cents),
-        disc: it.cash_price ? "" : !legacyValor && Number(it.discount_input) ? App.decInput(it.discount_input) : "", cash: it.cash_price ? App.centsInput(it.cash_unit_cents) : "", pay_date: it.pay_date || "",
+        disc: it.cash_price ? "" : !legacyValor && Number(it.discount_input) ? App.decInput(it.discount_input) : "", cash: it.cash_price ? App.centsInput(it.final_unit_cents ?? it.cash_unit_cents) : "", pay_date: it.pay_date || "",
         manufacturer: it.manufacturer, category: it.category, package_size: it.package_size, package_label: it.package_label, cost: it.cost_unit_cents };
     });
     if (!quote && App.state.quoteDraft) {          // vindo da Calculadora de preço
@@ -6474,7 +6482,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
         <label class="field"><span>Desconto %</span><input class="pd" inputmode="decimal" value="${it.disc || ""}" placeholder="0"></label>
       </div>
       <div class="sgrid g2c">
-        <label class="field"><span>Preço do pedido (à vista)</span><input class="pc" inputmode="decimal" value="${it.cash || ""}" placeholder="0,00"></label>
+        <label class="field"><span class="pc-lbl">Preço do pedido</span><input class="pc" inputmode="decimal" value="${it.cash || ""}" placeholder="0,00"></label>
         <label class="field"><span>Data pagto. (opcional)</span><input class="pdt" type="date" value="${it.pay_date || ""}"></label>
       </div>
       <div class="sline"><span class="lcond"></span><span class="lunit"></span></div>
@@ -6514,7 +6522,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
       return { issue_date: hv.issue_date, pay_date: hv.pay_date, rate_pct: hv.rate_pct, cash_limit_days: hv.cash_limit_days,
         bag_price_cents: App.toCents(hv.bag_price) || null, bag_crop: hv.bag_crop, penhor_pct: H.penhor_pct, hv };
     };
-    const calcInput = () => items.map((it) => ({ product_name: it.name, quantity: it.quantity, unit: it.unit, table_price: it.price, discount_input: it.disc, cash_price: it.cash, pay_date: it.pay_date }));
+    const calcInput = () => items.map((it) => ({ product_name: it.name, quantity: it.quantity, unit: it.unit, table_price: it.price, discount_input: it.disc, final_price: it.cash, pay_date: it.pay_date }));
     let last = null;
     function recalc() {
       const h = header();
@@ -6528,7 +6536,9 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
         el.querySelector(".pq").classList.toggle("falta", named && x.qt === null);
         el.querySelector(".pp").classList.toggle("falta", named && x.pt === null);
         el.querySelector(".pd").placeholder = named && x.byPrice && x.pt !== null && !x.erro ? fmtN(x.dc, 2) : "0";
-        el.querySelector(".pc").placeholder = named && !x.byPrice && x.R !== null ? fmtN(x.R / 100, 2) : "0,00";
+        // o campo "preço do pedido" é o preço que o cliente paga: a prazo mostra o preço a prazo
+        el.querySelector(".pc").placeholder = named && !x.byPrice && x.G !== null ? fmtN(x.G / 100, 2) : "0,00";
+        el.querySelector(".pc-lbl").textContent = named && x.U === AP ? "Preço do pedido (a prazo)" : "Preço do pedido (à vista)";
         el.querySelector(".lcond").innerHTML = named ? condChip(x.U, ` · ${x.T} dia${x.T === 1 ? "" : "s"}`).s : "";
         el.querySelector(".lunit").innerHTML = named && x.G !== null ? html`<span class="tiny muted">${x.U === AV ? "Preço à vista" : "Preço a prazo"}</span> <b>${brl(x.G)}</b>${x.unit ? html`<span class="tiny muted">/${x.unit}</span>` : ""}`.s : "";
         el.querySelector(".ltot").textContent = named && x.net_cents !== null ? brl(x.net_cents) : "";
@@ -6575,8 +6585,10 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
       e.preventDefault();
       const { hv } = header();
       if (!hv.client_id) return App.toast("Escolha o cliente", "error");
+      const calcNow = B.gfbCalc(header(), calcInput());
+      const cashOf = (it) => { if (!it.cash) return null; const x = calcNow.items[items.indexOf(it)]; return x && x.R !== null ? String(x.R / 100) : it.cash; };
       const pl = items.filter((it) => (it.name || "").trim()).map((it) => ({
-        product_id: it.product_id || null, product_name: it.name.trim(), unit: it.unit || "", quantity: it.quantity, table_price: it.price, discount_input: it.cash ? "0" : it.disc || "0", cash_price: it.cash || null,
+        product_id: it.product_id || null, product_name: it.name.trim(), unit: it.unit || "", quantity: it.quantity, table_price: it.price, discount_input: it.cash ? "0" : it.disc || "0", cash_price: cashOf(it),
         pay_date: it.pay_date || null, manufacturer: it.manufacturer || null, category: it.category || null, package_size: it.package_size || null,
         package_label: it.package_label || null, cost_unit_cents: it.cost ?? null }));
       if (!pl.length) return App.toast("Adicione pelo menos um produto", "error");
