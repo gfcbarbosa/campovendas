@@ -1580,6 +1580,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
      items: [{ product_name, quantity, unit, table_price | unit_price_cents, discount_input, pay_date }] */
   function gfbCalc(h, items) {
     const taxaPct = gnum(h.rate_pct) ?? 0, taxa = taxaPct / 100;
+    const unitOnly = h.proposal_mode === "unitario";
     const limite = gnum(h.cash_limit_days) ?? 0;
     const prazo = Math.max(gdays(h.issue_date, h.pay_date), 0);
     const condPadrao = prazo <= limite ? AV : AP;
@@ -1626,7 +1627,8 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
       return {
         idx, nome, unit: it.unit || "", qt, pt, dc: dcPct, byPrice: cp !== null, R: R === null ? null : Math.round(R * 100), G: G === null ? null : Math.round(G * 100),
         H, Q, tab, T, U, S, dataPropria, net_cents: intlCents(H), sacas: intl2(I),
-        naProposta: nome !== "" && H !== null && !err, incompleto: nome !== "" && (qt === null || pt === null), erro: err,
+        // proposta "somente unitário": quantidade é opcional (entra na proposta só com o preço unitário)
+        naProposta: nome !== "" && !err && (unitOnly ? G !== null : H !== null), incompleto: nome !== "" && (unitOnly ? pt === null : qt === null || pt === null), erro: err,
       };
     });
     const nomeados = out.filter((i) => i.nome !== "");
@@ -1640,7 +1642,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
     let status, statusTipo;
     if (!nomeados.length) { status = "Digite os produtos abaixo"; statusTipo = "info"; }
     else if (errors.length) { status = `${errors.length} item(ns) com valor inválido`; statusTipo = "warn"; }
-    else if (incompletos) { status = `${incompletos} item(ns) sem quantidade ou preço`; statusTipo = "warn"; }
+    else if (incompletos) { status = unitOnly ? `${incompletos} item(ns) sem preço` : `${incompletos} item(ns) sem quantidade ou preço`; statusTipo = "warn"; }
     else { status = "Cotação pronta para a proposta"; statusTipo = "ok"; }
     const datasProposta = [...new Set(proposta.map((i) => (i.U === AV ? "AV" : i.S)))];
     return {
@@ -1948,16 +1950,17 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
       if (!x.nome) throw new ApiError(400, `Item ${pos}: informe o produto`);
       if (x.erro) throw new ApiError(422, `Item ${pos} (${x.nome}): ${x.erro}`);
       if (x.incompleto) throw new ApiError(422, `Item ${pos} (${x.nome}): informe quantidade e preço`);
-      const gross = B.intlCents(x.tab), avista = B.intlCents(x.Q);
+      const noQty = x.qt === null;                       // só preço unitário
+      const gross = noQty ? 0 : B.intlCents(x.tab), avista = noQty ? 0 : B.intlCents(x.Q);
       const cost = it.cost_unit_cents !== null && it.cost_unit_cents !== undefined && it.cost_unit_cents !== "" ? parseInt(it.cost_unit_cents, 10) : null;
       return { position: pos, product_id: it.product_id, product_name: x.nome.slice(0, 200), manufacturer: B.s(it, "manufacturer", 200), category: B.s(it, "category", 80),
         unit: String(x.unit || "").slice(0, 20), package_size: it.package_size ? dstr(D(it.package_size)) : null, package_label: B.s(it, "package_label", 60),
         dose: null, dose_unit: null, dose_factor: null, area_ha: null, technical_qty: null, packages: null,
-        quantity: dstr(D(x.qt)), unit_price_cents: Math.round(x.pt * 100), table_price: dstr(D(x.pt)), discount_type: "pct", discount_input: dstr(D(x.dc.toFixed(6))),
+        quantity: noQty ? null : dstr(D(x.qt)), unit_price_cents: Math.round(x.pt * 100), table_price: dstr(D(x.pt)), discount_type: "pct", discount_input: dstr(D(x.dc.toFixed(6))),
         cash_price: x.byPrice ? (x.R / 100).toFixed(2) : null,
-        gross_cents: gross, discount_cents: gross - avista, interest_cents: x.net_cents - avista, net_total_cents: x.net_cents, gfb_h: x.H,
+        gross_cents: gross, discount_cents: gross - avista, interest_cents: noQty ? 0 : x.net_cents - avista, net_total_cents: noQty ? 0 : x.net_cents, gfb_h: x.H,
         pay_date: x.dataPropria ? it.pay_date : null, eff_pay_date: x.S || null, term_days: x.T, pay_cond: x.U, cash_unit_cents: x.R, final_unit_cents: x.G,
-        cost_unit_cents: cost, notes: B.s(it, "notes", 500), cost_total_cents: cost !== null ? B.roundCentsOf(D(x.qt), cost) : null };
+        cost_unit_cents: cost, notes: B.s(it, "notes", 500), cost_total_cents: cost !== null && !noQty ? B.roundCentsOf(D(x.qt), cost) : null };
     });
     return { items, calc };
   }
@@ -2111,8 +2114,13 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
     const items = qItems(qid); const byId = Object.fromEntries(items.map((i) => [i.id, i]));
     const gfb = q.pricing === "gfb";
     const gfbProrate = (src, qv) => {       // venda no padrão GFB: mantém o preço final (à vista ou a prazo) cotado
-      const full = D(src.quantity), qty = D(qv, "quantidade");
-      if (qty <= 0n || qty > full) throw new B.CalcError(`Quantidade de '${src.product_name}' deve estar entre 0 e ${dstr(full)}`);
+      const qty = D(qv, "quantidade");
+      if (src.quantity === null || src.quantity === undefined || src.quantity === "") {      // cotado só com preço unitário
+        if (qty <= 0n) throw new B.CalcError(`Informe a quantidade fechada de '${src.product_name}'`);
+      } else {
+        const full = D(src.quantity);
+        if (qty <= 0n || qty > full) throw new B.CalcError(`Quantidade de '${src.product_name}' deve estar entre 0 e ${dstr(full)}`);
+      }
       const ex = Number(dstr(qty)) * (src.final_unit_cents / 100); const c = B.intlCents(ex);
       return { quantity: dstr(qty), exact: ex, gross_cents: c, discount_cents: 0, discount_input: "0", net_total_cents: c };
     };
@@ -2128,9 +2136,11 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
       chosen.push([byId[iid], pr]);
     });
     if (!chosen.length) throw new ApiError(400, "Selecione ao menos um produto fechado");
-    const full = chosen.length === items.length && chosen.every(([s, p]) => D(p.quantity) === D(s.quantity));
+    const noQ = (it) => it.quantity === null || it.quantity === undefined || it.quantity === "";
+    const anyNoQty = items.some(noQ);
+    const full = chosen.length === items.length && chosen.every(([s, p]) => noQ(s) || D(p.quantity) === D(s.quantity));
     const closed = B.dateIso(d.closed_date, "Data de fechamento") || B.todayIso();
-    const itemsTotal = gfb ? (full ? q.items_total_cents : B.intlCents(chosen.reduce((a, [, p]) => a + p.exact, 0))) : chosen.reduce((a, [, p]) => a + p.net_total_cents, 0);
+    const itemsTotal = gfb ? (full && !anyNoQty ? q.items_total_cents : B.intlCents(chosen.reduce((a, [, p]) => a + p.exact, 0))) : chosen.reduce((a, [, p]) => a + p.net_total_cents, 0);
     let freight, other;
     if (full) { freight = q.freight_cents; other = q.other_cents; }
     else {
@@ -2156,7 +2166,8 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
     else {
       const action = d.remainder || "continuar";
       const cmap = Object.fromEntries(chosen.map(([s, p]) => [s.id, p]));
-      const remaining = items.map((it) => [it, D(it.quantity) - (cmap[it.id] ? D(cmap[it.id].quantity) : 0n)]).filter(([, l]) => l > 0n);
+      const remaining = items.map((it) => (noQ(it) ? (cmap[it.id] ? null : [it, null]) : [it, D(it.quantity) - (cmap[it.id] ? D(cmap[it.id].quantity) : 0n)]))
+        .filter((r) => r && (r[1] === null || r[1] > 0n));
       if (action === "encerrar") {
         const reason = d.remainder_reason || "saldo_nao_fechado";
         if (!B.LOSS_REASONS[reason]) throw new ApiError(400, "Motivo inválido");
@@ -2165,7 +2176,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
       } else if (action === "continuar") {
         B.update("quotes", qid, { status: "parcialmente_ganha", decided_at: closed, won_cents: total, lost_cents: 0, is_current: 0, updated_at: now() });
         const newItems = remaining.map(([it, left]) => {
-          if (gfb) { const ni = {}; ITEM_COLS.forEach((c) => (ni[c] = it[c])); ni.quantity = dstr(left); return ni; }
+          if (gfb) { const ni = {}; ITEM_COLS.forEach((c) => (ni[c] = it[c])); ni.quantity = left === null ? null : dstr(left); return ni; }
           const pr = B.prorateItem(it, dstr(left)); const ni = {}; ITEM_COLS.forEach((c) => (ni[c] = it[c]));
           return Object.assign(ni, { quantity: pr.quantity, gross_cents: pr.gross_cents, discount_cents: pr.discount_cents, discount_input: pr.discount_input, net_total_cents: pr.net_total_cents,
             technical_qty: null, packages: it.package_size ? dstr(B.dDiv(left, D(it.package_size))) : null, dose: null, dose_unit: null, dose_factor: null });
@@ -3374,7 +3385,8 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
   Docs.gfbPdf = async (q, o = {}) => {
     const { PDFDocument, StandardFonts, rgb } = PDFLib;
     const st = B.settings(), g = q.gfb, AV = B.GFB.AV;
-    const total = (o.mode || q.proposal_mode) === "total";
+    const semQtd = (q.items || []).some((it) => it.quantity === null || it.quantity === undefined || it.quantity === "");
+    const total = !semQtd && (o.mode || q.proposal_mode) === "total";
     const doc = await PDFDocument.create();
     const f = await doc.embedFont(StandardFonts.Helvetica), fb = await doc.embedFont(StandardFonts.HelveticaBold);
     const k = 72 / 25.4, W = 210, HH = 297, M = 16;
@@ -3447,7 +3459,8 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
     lbl("Itens da proposta", M, y); y += 3;
 
     // tabela (como o autoTable da calculadora)
-    const cols = [{ h: "#", w: 10 }, { h: "Produto", w: 0 }, { h: "Qtde", w: 16, r: 1 }, { h: "Unid.", w: 13 }];
+    const temQtd = itens.some((it) => !(it.qt === null || it.qt === undefined || it.qt === ""));
+    const cols = [{ h: "#", w: 10 }, { h: "Produto", w: 0 }, ...(temQtd ? [{ h: "Qtde", w: 16, r: 1 }] : []), { h: "Unid.", w: 13 }];
     if (colData) cols.push({ h: "Pagamento", w: 24 });
     cols.push({ h: "Preço unitário", w: 30, r: 1 });
     if (total) cols.push({ h: "Total", w: 32, r: 1 });
@@ -3470,7 +3483,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
     const drawHead = () => drawRow(cols.map((c) => c.h), { head: true, size: 8, bold: true, color: branco, fill: verde });
     drawHead();
     itens.forEach((it, i) => {
-      const r = [String(i + 1).padStart(2, "0"), it.nome, fmtQ(it.qt), it.unid];
+      const r = [String(i + 1).padStart(2, "0"), it.nome, ...(temQtd ? [it.qt === null || it.qt === undefined || it.qt === "" ? "-" : fmtQ(it.qt)] : []), it.unid];
       if (colData) r.push(pagItem(it));
       r.push(money(it.G)); if (total) r.push(money(it.H));
       drawRow(r, { fill: i % 2 === 1 ? alt : null, line: true });
@@ -5240,8 +5253,9 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
       body: html`<form class="form">
         <div class="infobox">A venda é criada com os preços e condições desta versão, sem redigitar. Ajuste as quantidades se o fechamento foi parcial. Um novo clique não cria outra venda.</div>
         <div class="list">${q.items.map((it) => html`<div class="item"><div class="grow"><div class="title">${it.product_name}</div>
-          <div class="meta">Cotado: ${App.num(it.quantity)} ${it.unit} · ${brl(it.net_total_cents)}</div></div>
-          <div style="width:130px"><input name="q_${it.id}" value="${App.decInput(it.quantity)}" inputmode="decimal" aria-label="Quantidade fechada de ${it.product_name}"><div class="tiny muted right">${it.unit} fechados</div></div></div>`)}</div>
+          <div class="meta">${(it.quantity === null || it.quantity === undefined || it.quantity === "") ? `Cotado só com preço unitário: ${brl(it.final_unit_cents ?? it.unit_price_cents)}${it.unit ? "/" + it.unit : ""}` : `Cotado: ${App.num(it.quantity)} ${it.unit} · ${brl(it.net_total_cents)}`}</div></div>
+          <div style="width:130px"><input name="q_${it.id}" value="${(it.quantity === null || it.quantity === undefined || it.quantity === "") ? "" : App.decInput(it.quantity)}" placeholder="${(it.quantity === null || it.quantity === undefined || it.quantity === "") ? "quantidade" : ""}" inputmode="decimal" aria-label="Quantidade fechada de ${it.product_name}"><div class="tiny muted right">${it.unit} fechados</div></div></div>`)}</div>
+        ${q.items.some((it) => (it.quantity === null || it.quantity === undefined || it.quantity === "")) ? html`<div class="warnbox small">Informe a quantidade fechada dos produtos cotados só com preço unitário. Produto deixado em branco fica fora da venda.</div>` : ""}
         <div class="row"><button type="button" class="btn sm" id="all">Tudo</button><button type="button" class="btn sm" id="none">Zerar</button></div>
         <div class="card tight totals" id="wtot"></div>
         <div id="partial" class="form hidden">
@@ -5260,6 +5274,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
           q.items.forEach((it) => {
             const v = m.querySelector(`[name=q_${it.id}]`).value;
             const n = Number(String(v).replace(/\./g, "").replace(",", ".")) || 0;
+            if ((it.quantity === null || it.quantity === undefined || it.quantity === "")) { if (!n) partial = true; total += Math.round(n * (it.final_unit_cents ?? it.unit_price_cents)); return; }
             const full = Number(it.quantity);
             if (n !== full) partial = true;
             total += Math.round(it.net_total_cents * Math.min(n, full) / full);
@@ -5269,7 +5284,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
             <div class="ln small muted"><span>${partial ? "Ganho PARCIAL" : "Ganho TOTAL"}</span><span>cotação: ${brl(q.items_total_cents)} em produtos</span></div>`.s;
         };
         m.querySelectorAll("input[name^=q_]").forEach((i) => i.addEventListener("input", upd));
-        m.querySelector("#all").onclick = () => { q.items.forEach((it) => (m.querySelector(`[name=q_${it.id}]`).value = App.decInput(it.quantity))); upd(); };
+        m.querySelector("#all").onclick = () => { q.items.forEach((it) => { if (!(it.quantity === null || it.quantity === undefined || it.quantity === "")) m.querySelector(`[name=q_${it.id}]`).value = App.decInput(it.quantity); }); upd(); };
         m.querySelector("#none").onclick = () => { q.items.forEach((it) => (m.querySelector(`[name=q_${it.id}]`).value = "0")); upd(); };
         m.querySelectorAll("[name=remainder]").forEach((r) => r.addEventListener("change", () => m.querySelector("#rreason").classList.toggle("hidden", m.querySelector("[name=remainder]:checked").value !== "encerrar")));
         upd();
@@ -6358,7 +6373,8 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
 
   /* dados da proposta (mesma lógica da aba Proposta da calculadora) */
   function proposta(q, modeIn) {
-    const g = q.gfb, mode = (modeIn || q.proposal_mode) === "total" ? "total" : "unitario";
+    const semQtd = q.items.some((it) => it.quantity === null || it.quantity === undefined || it.quantity === "");
+    const g = q.gfb, mode = !semQtd && (modeIn || q.proposal_mode) === "total" ? "total" : "unitario";
     const itens = q.items.map((it) => ({ nome: nm(it.product_name), qt: it.quantity, unid: it.unit || "", G: it.final_unit_cents, H: it.net_total_cents, U: it.pay_cond, S: it.eff_pay_date }));
     const pagItem = (it) => (it.U === AV ? "À vista" : App.date(it.S));
     let pag, subPag;
@@ -6379,7 +6395,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
     const L = [`*PROPOSTA COMERCIAL — Nº ${q.number}*`, `${emp}${st.gfb_slogan ? " · " + st.gfb_slogan : ""}`, "",
       `Preparada para: *${nm(q.client.name)}*`, `Emitida em ${App.date(q.issue_date)} · válida até ${App.date(g.validade)}`,
       `Condição: ${g.condicao.toLowerCase()}`, `Pagamento: ${P.pag}${P.subPag && !P.colData ? ` (${P.subPag})` : ""}`, "", "*Itens da proposta*"];
-    P.itens.forEach((it, i) => L.push(`${String(i + 1).padStart(2, "0")}. ${it.nome} — ${fmtQ(it.qt)}${it.unid ? " " + it.unid : ""} — ${brl(it.G)}${it.unid ? "/" + it.unid : ""}`
+    P.itens.forEach((it, i) => L.push(`${String(i + 1).padStart(2, "0")}. ${it.nome}${it.qt === null || it.qt === undefined || it.qt === "" ? "" : ` — ${fmtQ(it.qt)}${it.unid ? " " + it.unid : ""}`} — ${brl(it.G)}${it.unid ? "/" + it.unid : ""}`
       + (P.colData ? ` — ${P.pagItem(it)}` : "") + (P.total ? ` — total ${brl(it.H)}` : "")));
     if (P.total) {
       L.push("", `*Investimento total: ${brl(q.total_cents)}*`);
@@ -6519,7 +6535,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
     }
     const header = () => {
       const hv = App.readForm(form);
-      return { issue_date: hv.issue_date, pay_date: hv.pay_date, rate_pct: hv.rate_pct, cash_limit_days: hv.cash_limit_days,
+      return { issue_date: hv.issue_date, pay_date: hv.pay_date, rate_pct: hv.rate_pct, cash_limit_days: hv.cash_limit_days, proposal_mode: hv.proposal_mode,
         bag_price_cents: App.toCents(hv.bag_price) || null, bag_crop: hv.bag_crop, penhor_pct: H.penhor_pct, hv };
     };
     const calcInput = () => items.map((it) => ({ product_name: it.name, quantity: it.quantity, unit: it.unit, table_price: it.price, discount_input: it.disc, final_price: it.cash, pay_date: it.pay_date }));
@@ -6533,7 +6549,8 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
         const x = c.items[i], named = !!x.nome;
         el.classList.toggle("own", named && x.dataPropria);
         el.classList.toggle("av", named && x.U === AV); el.classList.toggle("ap", named && x.U === AP);
-        el.querySelector(".pq").classList.toggle("falta", named && x.qt === null);
+        el.querySelector(".pq").classList.toggle("falta", named && x.incompleto && x.qt === null);
+        el.querySelector(".pq").placeholder = h.proposal_mode === "unitario" ? "opcional" : "";
         el.querySelector(".pp").classList.toggle("falta", named && x.pt === null);
         el.querySelector(".pd").placeholder = named && x.byPrice && x.pt !== null && !x.erro ? fmtN(x.dc, 2) : "0";
         // o campo "preço do pedido" é o preço que o cliente paga: a prazo mostra o preço a prazo
@@ -6572,7 +6589,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
       view.querySelector("#tot").textContent = brl(c.total_cents);
     }
     render();
-    ["issue_date", "pay_date", "rate_pct", "cash_limit_days", "bag_price", "bag_crop"].forEach((n) => form.querySelector(`[name=${n}]`).addEventListener("input", recalc));
+    ["issue_date", "pay_date", "rate_pct", "cash_limit_days", "bag_price", "bag_crop", "proposal_mode"].forEach((n) => { const el = form.querySelector(`[name=${n}]`); if (el) { el.addEventListener("input", recalc); el.addEventListener("change", recalc); } });
     form.querySelector("[name=bag_crop]").addEventListener("change", recalc);
     view.querySelector("#add").onclick = () => { items.push({}); render(); const ins = rowsEl.querySelectorAll(".pname"); ins[ins.length - 1].focus(); };
     const cli = form.querySelector("[name=client_id]");
@@ -6621,7 +6638,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
         <div class="row between" style="flex-wrap:nowrap;align-items:flex-start"><div style="min-width:0"><div class="eyebrow">${q.number}${q.version > 1 ? ` · versão ${q.version}` : ""}</div>
           <h1 style="margin:2px 0">${nm(q.client.name)}</h1><div class="small muted">Emitida em ${App.date(q.issue_date)} · válida até ${App.date(q.valid_until)}</div></div>
           ${App.chip(q.status, SIMPLE_Q)}</div>
-        <div class="sum-total" data-count="${q.total_cents}">${brl(q.total_cents)}</div>
+        ${q.items.some((it) => (it.quantity === null || it.quantity === undefined || it.quantity === "")) && !q.total_cents ? html`<div class="sum-total" style="font-size:1.4rem">Só preço unitário</div>` : html`<div class="sum-total" data-count="${q.total_cents}">${brl(q.total_cents)}</div>`}
         ${g ? html`<div class="row" style="gap:6px;align-items:center;margin-top:2px">${condChip(g.condicao)}<span class="small muted">Pagamento: ${P.pag}${P.colData ? "" : ` · ${P.subPag}`}</span></div>
           <div class="tiles mini" style="margin-top:10px">
             <div class="tile"><span class="k">Tabela</span><span class="v">${brl(g.tabela_cents)}</span></div>
@@ -6639,9 +6656,9 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
       <div class="grid g2" id="main-acts"></div>
       <div class="list" style="margin-top:12px">${q.items.map((it, i) => html`<div class="item gfb-item ${it.pay_cond === AP ? "ap" : it.pay_cond === AV ? "av" : ""}"><div class="grow">
         <div class="title">${String(i + 1).padStart(2, "0")} · ${nm(it.product_name)}</div>
-        <div class="meta">${fmtQ(it.quantity)}${it.unit ? " " + it.unit : ""} × <b>${brl(it.final_unit_cents ?? it.unit_price_cents)}</b>${it.table_price != null ? ` · tabela ${brl(it.unit_price_cents)}${Number(it.discount_input) ? ` −${fmtN(it.discount_input, Number.isInteger(Number(it.discount_input)) ? 0 : 2)}%` : ""}` : ""}</div>
+        <div class="meta">${(it.quantity === null || it.quantity === undefined || it.quantity === "") ? html`<b>${brl(it.final_unit_cents ?? it.unit_price_cents)}</b>${it.unit ? "/" + it.unit : ""} · preço unitário` : html`${fmtQ(it.quantity)}${it.unit ? " " + it.unit : ""} × <b>${brl(it.final_unit_cents ?? it.unit_price_cents)}</b>`}${it.table_price != null ? ` · tabela ${brl(it.unit_price_cents)}${Number(it.discount_input) ? ` −${fmtN(it.discount_input, Number.isInteger(Number(it.discount_input)) ? 0 : 2)}%` : ""}` : ""}</div>
         ${it.pay_cond ? html`<div class="meta">${condChip(it.pay_cond)} ${it.pay_cond === AP ? `até ${App.date(it.eff_pay_date)} (${it.term_days} dias)` : ""}${it.pay_date ? " · data própria" : ""}</div>` : ""}</div>
-        <span class="amount">${brl(it.net_total_cents)}</span></div>`)}</div>
+        <span class="amount">${(it.quantity === null || it.quantity === undefined || it.quantity === "") ? "" : brl(it.net_total_cents)}</span></div>`)}</div>
       ${q.notes ? html`<div class="card tight small" style="white-space:pre-wrap">${q.notes}</div>` : ""}
       <div class="btn-bar" id="more-acts"></div>`.s;
     const main = view.querySelector("#main-acts"), more = view.querySelector("#more-acts");
