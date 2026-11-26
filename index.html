@@ -496,6 +496,16 @@ html.d-compact h1{font-size:1.38rem}
 .cm-it{display:flex;gap:10px;align-items:center;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:8px 2px;cursor:pointer;font:inherit;color:inherit}
 .cm-it .r,.cm-sale .r{text-align:right;white-space:nowrap}
 
+/* calculadora de margem */
+.grid.g4f{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+.home-tools .btn{font-size:.86rem;gap:4px;flex-direction:column;padding:8px 4px}
+.mg-t td,.mg-t th{padding:7px 6px}
+.mg-t th{font-size:.72rem}
+.mg-acima{color:var(--gold,#9a6512)}
+.mg-sims{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:8px}
+.mg-res{background:var(--surface-2,#f6f8f5);border:1px solid var(--line);border-radius:12px;padding:10px}
+.seg.sm button{font-size:.8rem;padding:6px 8px}
+
 .content{padding-top:max(14px,env(safe-area-inset-top))}
 </style><link rel="manifest" href="manifest.webmanifest"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="CampoVendas"><link rel="apple-touch-icon" href="icon-180.png"><script>if("serviceWorker" in navigator && /^https?:$/.test(location.protocol)){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").then(function(r){r.addEventListener("updatefound",function(){var w=r.installing;w&&w.addEventListener("statechange",function(){if(w.state==="installed"&&navigator.serviceWorker.controller){window.CV_UPDATE=true;try{App.toast("Nova versão disponível: feche e abra o app para atualizar")}catch(e){}}})})}).catch(function(){})})}</script><script>window.CV_CLOUD_CONFIG={"url": "https://luoxidbcggzpopuxzbrs.supabase.co", "key": "sb_publishable_oaVj2I7U5fLK96_wjBkQmw_IKNPPCk8"};</script><script>/* Sincronização na nuvem (Supabase) para o app instalado.
    Cada aparelho guarda tudo localmente (funciona sem internet no campo) e, quando há conexão,
@@ -4105,6 +4115,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
 
   /* ---------- ícones (traço, 24px) ---------- */
   const ICONS = {
+    percent: '<path d="M19 5L5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>',
     copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
     xmark: '<path d="M6 6l12 12M18 6L6 18"/>',
     addp: '<path d="M12 5v14M5 12h14"/>',
@@ -5912,7 +5923,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
         ${L("#/calculadoras", "calc", "Calculadoras", "dose × área, sementes, sacas de soja")}</div>
       <div class="list menu-list">${L("#/metas", "target", "Metas")}
         ${L("#/planejamentos", "sprout", "Planejamentos de visitas", "dias após o plantio")}</div>
-      <div class="list menu-list">${L("#/comissao", "coins", "Comissão por nota fiscal")}${L("#/preco", "tag", "Calculadora de preço")}${L("#/calculadora", "calc", "Calculadora financeira")}${L("#/solo", "sprout", "Análise de solo")}${L("#/importar", "upload", "Importar clientes e produtos")}${L("#/exportar", "download", "Exportar e backup")}
+      <div class="list menu-list">${L("#/comissao", "coins", "Comissão por nota fiscal")}${L("#/preco", "tag", "Calculadora de preço")}${L("#/margem", "percent", "Calculadora de margem")}${L("#/calculadora", "calc", "Calculadora financeira")}${L("#/solo", "sprout", "Análise de solo")}${L("#/importar", "upload", "Importar clientes e produtos")}${L("#/exportar", "download", "Exportar e backup")}
         ${L("#/auditoria", "history", "Histórico de alterações")}${L("#/lixeira", "trash", "Lixeira", "clientes excluídos")}</div>
       <div class="list menu-list">${L("#/config", "settings", "Configurações e identidade visual")}</div>
       <div class="card"><h3>Dados de demonstração</h3>
@@ -6197,7 +6208,8 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
           : html`<div class="foot"><span>Toque para definir sua meta do mês</span></div>`}
       </a>
       <a class="big-new" href="#/cotacoes/nova"><span class="plus">${I("plus")}</span>Nova cotação</a>
-      <div class="grid g3f home-tools" style="margin:-2px 0 12px;gap:8px"><a class="btn" href="#/preco">${I("tag")} Preço</a>
+      <div class="grid g4f home-tools" style="margin:-2px 0 12px;gap:6px"><a class="btn" href="#/preco">${I("tag")} Preço</a>
+        <a class="btn" href="#/margem">${I("percent")} Margem</a>
         <a class="btn" href="#/calculadora">${I("calc")} Juros</a>
         <a class="btn" href="#/solo">${I("sprout")} Solo</a></div>
       <div class="grid g2" style="margin-bottom:6px">
@@ -6336,7 +6348,7 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
     const L = (h, i, t, s) => html`<a class="item" href="${h}">${I(i)}<div class="grow"><div class="title">${t}</div>${s ? html`<div class="meta">${s}</div>` : ""}</div><span class="chev">${I("right", "sm")}</span></a>`;
     const demo = await App.get("/api/demo/status").catch(() => ({ demo_clients: 0 }));
     view.innerHTML = html`<h1>Mais</h1>
-      <div class="list menu-list">${L("#/comissao", "coins", "Comissão", "por nota fiscal · regras por segmento")}${L("#/preco", "tag", "Calculadora de preço", "preço à vista e a prazo, com desconto, sem criar cotação")}${L("#/calculadora", "calc", "Calculadora financeira", "juros compostos: levar ao futuro ou trazer para hoje")}${L("#/solo", "sprout", "Análise de solo", "laudo, interpretação e recomendação (Fertilidade do Solo Cerrado)")}${L("#/clientes", "users", "Clientes", "telefone, cidade, histórico")}${L("#/produtos", "box", "Produtos e preços", "seu catálogo para as cotações")}${L("#/receitas", "sprout", "Receitas agronômicas", "plano por operação e PDF da receita")}
+      <div class="list menu-list">${L("#/comissao", "coins", "Comissão", "por nota fiscal · regras por segmento")}${L("#/preco", "tag", "Calculadora de preço", "preço à vista e a prazo, com desconto, sem criar cotação")}${L("#/margem", "percent", "Calculadora de margem", "preço de venda para cada margem e margem de cada desconto")}${L("#/calculadora", "calc", "Calculadora financeira", "juros compostos: levar ao futuro ou trazer para hoje")}${L("#/solo", "sprout", "Análise de solo", "laudo, interpretação e recomendação (Fertilidade do Solo Cerrado)")}${L("#/clientes", "users", "Clientes", "telefone, cidade, histórico")}${L("#/produtos", "box", "Produtos e preços", "seu catálogo para as cotações")}${L("#/receitas", "sprout", "Receitas agronômicas", "plano por operação e PDF da receita")}
         ${L("#/metas", "target", "Metas")}${L("#/config", "settings", "Padrão de preço, seu nome e PDF")}${L("#/exportar", "download", "Backup e Excel")}${L("#/importar", "upload", "Importar clientes e produtos")}</div>
       <div class="card tight"><div class="row between"><div><b>Tamanho da tela</b><div class="tiny muted">Só neste aparelho</div></div>${App.densityControl()}</div></div>
       <div class="card tight"><div class="row between"><div><b>Modo completo</b><div class="tiny muted">Mostra agenda de visitas, talhões, dose × área, margens e mais filtros.</div></div>
@@ -7540,6 +7552,129 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
         App.go("#/cotacoes/nova");
       };
     }
+    draw();
+  }, { tab: "mais" });
+})();
+
+/* ---- margem.js ---- */
+/* Calculadora de margem.
+   O custo vem de uma referência do sistema da empresa ("com X% de desconto a margem fica Y%") ou é digitado.
+   Margem sobre a venda:  margem = (preço − custo) ÷ preço   →  preço = custo ÷ (1 − margem)
+   Margem sobre o custo (markup): margem = (preço − custo) ÷ custo  →  preço = custo × (1 + margem)
+   Desconto sobre a tabela = 1 − preço ÷ tabela (negativo = vender acima da tabela). */
+(function () {
+  "use strict";
+  const { html, route, brl } = App;
+  const I = App.icon;
+  const LS = "cv_margem";
+  const nf = (v, d = 2) => new Intl.NumberFormat("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d }).format(v);
+  const num = (s) => {
+    let t = String(s == null ? "" : s).trim().replace(/\s|R\$|%/g, "");
+    if (t === "") return null;
+    if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
+    const n = Number(t); return isFinite(n) ? n : null;
+  };
+  const r2 = (x) => { const v = Number((Math.abs(x) * 100).toPrecision(15)); return Math.sign(x) * Math.round(v) / 100; };
+  const cents = (reais) => Math.round(r2(reais) * 100);
+
+  const fresh = () => ({ base: "venda", origem: "ref", tabela: "", desc_ref: "", marg_ref: "", custo: "", alvos: "8; 10; 15; 20", alvo: "", desc: "" });
+  function load() { try { const s = JSON.parse(App.ls(LS) || "null"); if (s && s.base) return { ...fresh(), ...s }; } catch (e) {} return fresh(); }
+
+  /* núcleo do cálculo (exposto para conferência) */
+  const M = {
+    precoPara(custo, m, base) { if (base === "venda") return m >= 100 ? null : custo / (1 - m / 100); return custo * (1 + m / 100); },
+    margemDe(preco, custo, base) { if (base === "venda") return preco ? ((preco - custo) / preco) * 100 : null; return custo ? ((preco - custo) / custo) * 100 : null; },
+    custoDaRef(tabela, desc, marg, base) { const p = tabela * (1 - desc / 100); return base === "venda" ? p * (1 - marg / 100) : p / (1 + marg / 100); },
+  };
+  App.margemCalc = M;
+
+  route("/margem", async (view) => {
+    let s = load();
+    const draw = () => {
+      view.innerHTML = html`
+        <div class="page-head"><h1>Calculadora de margem</h1></div>
+        <div class="seg" id="mg-base" style="margin-bottom:8px">
+          <button type="button" data-b="venda" class="${s.base === "venda" ? "on" : ""}">Margem sobre a venda</button>
+          <button type="button" data-b="custo" class="${s.base === "custo" ? "on" : ""}">Sobre o custo (markup)</button></div>
+        <p class="tiny muted" style="margin:-2px 0 10px">${s.base === "venda" ? "Margem = (preço − custo) ÷ preço de venda. É o jeito mais comum nos sistemas de revenda." : "Markup = (preço − custo) ÷ custo."}
+          Use o mesmo jeito do sistema da empresa: confira com um pedido que você já conhece.</p>
+        <form id="mg" class="card form" autocomplete="off" onsubmit="return false">
+          <label class="field"><span>Preço de tabela (R$)</span><input name="tabela" inputmode="decimal" placeholder="Ex.: 85,00" value="${s.tabela}"></label>
+          <div class="seg sm" id="mg-orig" style="margin:4px 0 8px">
+            <button type="button" data-o="ref" class="${s.origem === "ref" ? "on" : ""}">Tenho uma referência do sistema</button>
+            <button type="button" data-o="custo" class="${s.origem === "custo" ? "on" : ""}">Sei o custo</button></div>
+          ${s.origem === "ref" ? html`<div class="grid g2">
+              <label class="field"><span>Com desconto de (%)</span><input name="desc_ref" inputmode="decimal" placeholder="Ex.: 5" value="${s.desc_ref}"></label>
+              <label class="field"><span>a margem fica (%)</span><input name="marg_ref" inputmode="decimal" placeholder="Ex.: 15" value="${s.marg_ref}"></label></div>`
+            : html`<label class="field"><span>Custo do produto (R$)</span><input name="custo" inputmode="decimal" placeholder="0,00" value="${s.custo}"></label>`}
+          <div id="mg-custo" class="small" style="margin-top:4px"></div>
+        </form>
+        <div id="mg-out"></div>
+        <div class="card form" style="margin-top:10px">
+          <h3 style="margin:0 0 6px">Simular</h3>
+          <div class="grid g2">
+            <label class="field"><span>Quero margem de (%)</span><input name="alvo" form="mg2" inputmode="decimal" placeholder="Ex.: 12" value="${s.alvo}"></label>
+            <label class="field"><span>Se eu der desconto de (%)</span><input name="desc" form="mg2" inputmode="decimal" placeholder="Ex.: 3" value="${s.desc}"></label></div>
+          <div id="mg-sim"></div>
+          <label class="field" style="margin-top:8px"><span>Margens na tabela (separe com ponto e vírgula)</span><input name="alvos" form="mg2" value="${s.alvos}"></label>
+        </div>
+        <button type="button" class="btn ghost" id="mg-clear" style="width:100%;justify-content:center;margin-top:8px">Limpar</button>`.s;
+      bind(); update();
+    };
+
+    function update() {
+      App.ls(LS, JSON.stringify(s));
+      const box = view.querySelector("#mg-custo"), out = view.querySelector("#mg-out"), sim = view.querySelector("#mg-sim");
+      const tab = num(s.tabela);
+      let custo = null, erro = "";
+      if (s.origem === "custo") custo = num(s.custo);
+      else {
+        const d = num(s.desc_ref), m = num(s.marg_ref);
+        if (tab !== null && d !== null && m !== null) {
+          if (s.base === "venda" && m >= 100) erro = "Margem sobre a venda precisa ser menor que 100%.";
+          else custo = M.custoDaRef(tab, d, m, s.base);
+        }
+      }
+      if (erro) { box.innerHTML = html`<span style="color:var(--bad)">${erro}</span>`.s; out.innerHTML = ""; sim.innerHTML = ""; return; }
+      if (custo === null || custo <= 0) {
+        box.innerHTML = html`<span class="muted">${s.origem === "ref" ? "Preencha a tabela, o desconto e a margem que o sistema mostrou." : "Preencha o custo."}</span>`.s;
+        out.innerHTML = ""; sim.innerHTML = ""; return;
+      }
+      box.innerHTML = html`Custo calculado: <b class="num">${brl(Math.round(custo * 100))}</b>${s.origem === "ref" ? html` <span class="tiny muted">(${nf(custo, 4)})</span>` : ""}
+        ${tab !== null ? html` · margem na tabela cheia: <b>${nf(M.margemDe(tab, custo, s.base), 2)}%</b>` : ""}`.s;
+      const alvos = String(s.alvos || "").split(/[;\s]+/).map(num).filter((v) => v !== null && v > -100 && (s.base !== "venda" || v < 100));
+      const linhas = [...new Set(alvos)].sort((a, b) => a - b).map((m) => {
+        const p = M.precoPara(custo, m, s.base);
+        const desc = tab ? (1 - p / tab) * 100 : null;
+        return html`<tr><td><b>${nf(m, Number.isInteger(m) ? 0 : 2)}%</b></td><td class="num"><b>${brl(cents(p))}</b></td>
+          <td class="num ${desc !== null && desc < 0 ? "mg-acima" : ""}">${desc === null ? "—" : desc < 0 ? `+${nf(-desc, 2)}% acima` : `${nf(desc, 2)}%`}</td>
+          <td class="num muted">${brl(cents(p - custo))}</td></tr>`;
+      });
+      out.innerHTML = html`<div class="card" style="margin-top:10px"><h3 style="margin:0 0 6px">Preço para cada margem</h3>
+        <table class="t mg-t" style="width:100%"><thead><tr><th>Margem</th><th class="num">Vender a</th><th class="num">Desconto s/ tabela</th><th class="num">Lucro/un.</th></tr></thead>
+        <tbody>${linhas}</tbody></table>
+        <p class="tiny muted" style="margin:6px 0 0">Preços à vista. "Acima" = precisa vender acima da tabela para ter essa margem.</p></div>`.s;
+      const a = num(s.alvo), d = num(s.desc);
+      const parts = [];
+      if (a !== null && (s.base !== "venda" || a < 100)) {
+        const p = M.precoPara(custo, a, s.base), desc = tab ? (1 - p / tab) * 100 : null;
+        parts.push(html`<div class="mg-res"><div class="tiny muted">Para ter ${nf(a, 2)}% de margem</div><b class="num">vender a ${brl(cents(p))}</b>
+          ${desc !== null ? html`<div class="tiny">${desc < 0 ? `${nf(-desc, 2)}% acima da tabela` : `desconto máximo de ${nf(desc, 2)}%`}</div>` : ""}</div>`);
+      }
+      if (d !== null && tab !== null) {
+        const p = tab * (1 - d / 100), m = M.margemDe(p, custo, s.base);
+        parts.push(html`<div class="mg-res"><div class="tiny muted">Com ${nf(d, 2)}% de desconto</div><b class="num">${brl(cents(p))} → margem ${nf(m, 2)}%</b>
+          ${m < 0 ? html`<div class="tiny" style="color:var(--bad)">abaixo do custo</div>` : ""}</div>`);
+      }
+      sim.innerHTML = parts.length ? html`<div class="mg-sims">${parts}</div>`.s : "";
+    }
+
+    function bind() {
+      view.querySelector("#mg-base").addEventListener("click", (e) => { const b = e.target.closest("[data-b]"); if (b) { s.base = b.dataset.b; draw(); } });
+      view.querySelector("#mg-orig").addEventListener("click", (e) => { const b = e.target.closest("[data-o]"); if (b) { s.origem = b.dataset.o; draw(); } });
+      view.querySelector("#mg-clear").onclick = () => { const keep = s.base; s = fresh(); s.base = keep; draw(); };
+    }
+    view.addEventListener("input", (e) => { const n = e.target.name; if (n && n in s) { s[n] = e.target.value; update(); } });
     draw();
   }, { tab: "mais" });
 })();
