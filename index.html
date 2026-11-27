@@ -7599,13 +7599,13 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
         <p class="tiny muted" style="margin:-2px 0 10px">${s.base === "venda" ? "Margem = (preço − custo) ÷ preço de venda. É o jeito mais comum nos sistemas de revenda." : "Markup = (preço − custo) ÷ custo."}
           Use o mesmo jeito do sistema da empresa: confira com um pedido que você já conhece.</p>
         <form id="mg" class="card form" autocomplete="off" onsubmit="return false">
-          <label class="field"><span>Preço de tabela (R$)</span><input name="tabela" inputmode="decimal" placeholder="Ex.: 85,00" value="${s.tabela}"></label>
+          <label class="field"><span>Preço cheio deste produto (R$)</span><input name="tabela" inputmode="decimal" placeholder="Ex.: 85,00" value="${s.tabela}"></label>
           <div class="seg sm" id="mg-orig" style="margin:4px 0 8px">
-            <button type="button" data-o="ref" class="${s.origem === "ref" ? "on" : ""}">Tenho uma referência do sistema</button>
+            <button type="button" data-o="ref" class="${s.origem === "ref" ? "on" : ""}">Descobrir o custo pelo sistema</button>
             <button type="button" data-o="custo" class="${s.origem === "custo" ? "on" : ""}">Sei o custo</button></div>
-          ${s.origem === "ref" ? html`<div class="grid g2">
-              <label class="field"><span>Com desconto de (%)</span><input name="desc_ref" inputmode="decimal" placeholder="Ex.: 5" value="${s.desc_ref}"></label>
-              <label class="field"><span>a margem fica (%)</span><input name="marg_ref" inputmode="decimal" placeholder="Ex.: 15" value="${s.marg_ref}"></label></div>`
+          ${s.origem === "ref" ? html`<p class="tiny muted" style="margin:0 0 6px">Vale só para este produto: dê um desconto no sistema da empresa, veja a margem que aparece e digite aqui. Para outro produto, use os números dele.</p><div class="grid g2">
+              <label class="field"><span>Desconto que dei (%)</span><input name="desc_ref" inputmode="decimal" placeholder="Ex.: 5" value="${s.desc_ref}"></label>
+              <label class="field"><span>Margem que o sistema mostrou (%)</span><input name="marg_ref" inputmode="decimal" placeholder="Ex.: 15" value="${s.marg_ref}"></label></div>`
             : html`<label class="field"><span>Custo do produto (R$)</span><input name="custo" inputmode="decimal" placeholder="0,00" value="${s.custo}"></label>`}
           <div id="mg-custo" class="small" style="margin-top:4px"></div>
         </form>
@@ -7640,8 +7640,16 @@ window.CV_SOLO_HTML="\u003c!DOCTYPE html>\n\u003chtml lang=\"pt-BR\">\n\u003chea
         box.innerHTML = html`<span class="muted">${s.origem === "ref" ? "Preencha a tabela, o desconto e a margem que o sistema mostrou." : "Preencha o custo."}</span>`.s;
         out.innerHTML = ""; sim.innerHTML = ""; return;
       }
-      box.innerHTML = html`Custo calculado: <b class="num">${brl(Math.round(custo * 100))}</b>${s.origem === "ref" ? html` <span class="tiny muted">(${nf(custo, 4)})</span>` : ""}
-        ${tab !== null ? html` · margem na tabela cheia: <b>${nf(M.margemDe(tab, custo, s.base), 2)}%</b>` : ""}`.s;
+      let passos = "";
+      if (s.origem === "ref") {
+        const d = num(s.desc_ref), m = num(s.marg_ref), pv = tab * (1 - d / 100);
+        passos = s.base === "venda"
+          ? `${brl(cents(tab))} − ${nf(d, 2)}% = ${brl(cents(pv))} · lucro de ${nf(m, 2)}% sobre ${brl(cents(pv))} = ${brl(cents(pv * m / 100))} · custo = ${brl(cents(pv))} − ${brl(cents(pv * m / 100))}`
+          : `${brl(cents(tab))} − ${nf(d, 2)}% = ${brl(cents(pv))} · custo = ${brl(cents(pv))} ÷ ${nf(1 + m / 100, 4)}`;
+      }
+      box.innerHTML = html`<div>Custo deste produto: <b class="num" style="font-size:1.1rem">${brl(Math.round(custo * 100))}</b></div>
+        ${passos ? html`<div class="tiny muted" style="margin-top:2px">${passos}</div>` : ""}
+        ${tab !== null ? html`<div class="tiny muted">Margem no preço cheio, sem desconto: ${nf(M.margemDe(tab, custo, s.base), 2)}%</div>` : ""}`.s;
       const alvos = String(s.alvos || "").split(/[;\s]+/).map(num).filter((v) => v !== null && v > -100 && (s.base !== "venda" || v < 100));
       const linhas = [...new Set(alvos)].sort((a, b) => a - b).map((m) => {
         const p = M.precoPara(custo, m, s.base);
